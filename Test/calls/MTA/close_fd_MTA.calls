@@ -1,0 +1,6 @@
+# 1
+open_fd_MTA ./email_msg 17
+read -u 17 && echo $REPLY
+test_func_wi_return_MTA close_fd_MTA 17 none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

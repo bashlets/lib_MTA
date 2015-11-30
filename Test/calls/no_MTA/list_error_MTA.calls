@@ -1,0 +1,12 @@
+# 2
+unset LIST_ERROR_LOG
+test_func_wi_return_MTA list_error_MTA "This is a test error." none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+export LIST_ERROR_LOG="ERROR.log"
+cat /dev/null > ${LIST_ERROR_LOG}
+chmod 666 ${LIST_ERROR_LOG}
+test_func_wi_return_MTA list_error_MTA "This is a test error." none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+rm -f ${LIST_ERROR_LOG}
+unset LIST_ERROR_LOG
+exit $PASSED

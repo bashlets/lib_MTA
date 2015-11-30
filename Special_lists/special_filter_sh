@@ -1,0 +1,213 @@
+# special_filter.sh
+##############################################################################
+# This filter script requires at least two special entries in the MTA        #
+# aliases file and three configuration files for each mailing list.  There   #
+# are other requirements as well.  (See the README-LIST file distributed     #
+# with the MTA library for details on how to set up a mailing list to use    #
+# this filter.)                                                              #
+##############################################################################
+# Major implemented features:                                                #
+#   Optional From: line rewrite (SPOOF)                                      #
+#   Optional Reply-To: line rewrite (SPOOF_REPLY)                            #
+#   Optional sender authorization check (AUTH_REQUIRED)                      #
+#   Optional attachment reject (NO_ATTACHMENTS)                              #
+#   Optional vacation reply reject (NO_VACATION)                             #
+#   Optional non-local posting rejection (MUST_BE_LOCAL)                     #
+#   Optional footer (FOOTER)                                                 #
+#   Optional Mailer error posting prevention (NO_MAIL_ERR)                   #
+#   Optional Spam tag posting prevention (NO_SPAM)                           #
+##############################################################################
+
+# Set the mailer agent
+Mailer_agent=sendmail
+
+# Set a reasonable path for what we need to find
+PATH="/bin:/sbin:/usr/sbin:/usr/bin:/usr/lib:/usr/local/sbin:/usr/local/bin"
+# Set a reasonable umask for file creation
+umask 0022
+# Who am I?
+PRGM=$(basename ${0})
+# What list is this?
+if [[ "${1}" ]]; then
+    List_name=${1}
+else
+    printf "This filter takes a list name argument\n\
+Usage: ${PRGM} List_name\n"
+    exit 1
+fi
+# If either SPECIAL_LIST_CFG_DIR or LIB_MTA is not set, see if an
+# /etc/profile.d/MTA.sh file is present.  Sourcing this file sets the
+# full path of both the special filter configuration files directory and the
+# lib_MTA library in global variables SPECIAL_LIST_CFG_DIR and LIB_MTA.
+# If the file is not there, bail, since we need both SPECIAL_LIST_CFG_DIR and
+# LIB_MTA to find everything.
+if [[ ! "${SPECIAL_LIST_CFG_DIR}" || ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        printf "\nCan't find the list configuration files and the \
+lib_MTA{.VERS}.sh library!\n\n"
+        exit 1
+    fi
+fi
+
+source ${LIB_MTA}                           # Source the lib_MTA library
+source "${SPECIAL_LIST_CFG_DIR}/MASTER.cfg" # Source master lists cfg. file
+source "${SPECIAL_LIST_CFG_DIR}/${List_name}.cfg"   # Source this list cfg.
+
+# If any mandatory global Variables are still not set, bail.
+if [[ ! "${SPECIAL_LISTS}" || ! "${LIST_DIR}" || ! "${LIST_ERROR_LOG}" || \
+! "${LIST_TRANS_LOG}" || ! "${FINAL}" ]]; then
+    printf "\nA mandatory parameter is missing!\nSee the README-LISTS \
+file which came with this distribution.\n\n"
+    exit 1
+fi
+
+# If ${REAL_LIST} is not set, assume it is the same as ${List_name}
+[[ ! "${REAL_LIST}" ]] && REAL_LIST=${List_name}
+
+# Make sure the list address file is findable and readable, otherwise bail.
+# Should be safe now to start logging errors to the list error file.
+if [[ ! "${LIST_DIR}" || ! -r "${LIST_DIR}/${REAL_LIST}" ]]; then
+    list_error_MTA "The list address file for ${REAL_LIST} is unusable!"
+    exit 1
+fi
+
+# If posting requires authorization, check that the list auth file
+# is both findable and readable.  Otherwise, bail.
+if [[ "${AUTH_REQUIRED}" ]]; then
+    if [[ ! "${AUTH_DIR}" || ! -r "${AUTH_DIR}/${List_name}.auth" ]]; then
+        list_error_MTA "List authorization is unusable."
+        exit 1
+    else
+        Auth_file="${AUTH_DIR}/${List_name}.auth"
+    fi
+fi
+
+# If posting is limited to local, make sure the local MTA is set,
+# otherwise bail.
+if [[ "${MUST_BE_LOCAL}" && ! "${LOCAL_MTA}" ]]; then
+    list_error_MTA "No local MTA is set in MASTER.cfg."
+    exit 1
+fi
+
+# Write the piped email message input to this script to a temporary file
+tmp=$(create_tmp_MTA "/tmp/.msg.$$") && cat > ${tmp}
+
+# Create appropriate return reasons for returned mail
+# flagged by the filter functions
+spam=$(cat << SPAM
+your message got tagged as 'LIKELY SPAM'.
+I did not want to send it out that way...
+SPAM)
+
+non_local=$(cat << NON_LOCAL
+you cannot post to ${List_name} from outside
+of the local domain
+NON_LOCAL)
+
+no_attach=$(cat << ATTACH
+attachments are not permitted to
+${List_name}
+ATTACH)
+
+auth_req=$(cat << AUTH
+you are not authorized to send email to
+${List_name}
+AUTH)
+
+# Get the sender for the error log file entries
+sender=$(get_From_MTA "${tmp}")
+
+# Ready to filter....
+# Filter actions exit 0 to avoid error response email from the MTA.
+if [[ ${NO_MAIL_ERR} = true ]]; then
+    kill_mailer_errs_MTA "${tmp}" "${MAILER_ERR_TOKENS}"
+    if [[ ${?} -eq 1 ]]; then
+        list_error_MTA "Mailer error response, dumped."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_SPAM} = true ]]; then
+    chk_Subject_MTA "${tmp}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${spam}"
+        list_error_MTA "LIKELY SPAM match from ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${MUST_BE_LOCAL} = true ]]; then
+    chk_Received_MTA "${tmp}" "${LOCAL_MTA}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${non_local}"
+        list_error_MTA "Non-local post attempt by ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_ATTACHMENTS} = true ]]; then
+    kill_attachments_MTA "${tmp}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${no_attach}"
+        list_error_MTA "Attachment sent by ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_VACATION} = true ]]; then
+    kill_vacation_MTA "${tmp}" "${VACATION_TOKENS}"
+    if [[ ${?} -eq 1 ]]; then
+        list_error_MTA "Vacation auto-reply from ${sender}, dumped."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${AUTH_REQUIRED} = true ]]; then
+    chk_auth_MTA "${tmp}" "${Auth_file}"
+    if [[ ${?} -eq 1 ]]; then
+        if [[ "${ALT_ADDRESS}" ]]; then
+            alternate_reply_MTA "${tmp}" "${ALT_ADDRESS}"
+        else
+            return_email_MTA "${tmp}" "${auth_req}"
+        fi
+        list_error_MTA "${sender} not authorized to post, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ "${FOOTER}" ]]; then
+    add_footer_MTA "${tmp}" "${FOOTER}"
+fi
+
+# Header field args to replace_header_MTA ARE CASE SENSITIVE (.i.e must be
+# 'Reply-To'; NOT 'Reply-to' or 'reply-to or 'REPLY-TO' in order to match).
+# (Look at the header field in a real email if in doubt as to format.)
+if [ "${SPOOF}" ]; then
+    if [ "${SPOOF_REPLY}" ]; then
+        cat $tmp | replace_header_MTA Reply-To ${SPOOF} |\
+        replace_header_MTA From ${SPOOF} |\
+        ${Mailer_agent} "${FINAL}";
+    else
+        cat $tmp | replace_header_MTA Reply-To none |\
+        replace_header_MTA From ${SPOOF} |\
+        ${Mailer_agent} "${FINAL}";
+    fi
+
+else
+    cat $tmp | ${Mailer_agent} "${FINAL}";
+fi
+
+# Clean up and log the transaction
+remove_file_MTA "${tmp}"
+log_transaction_MTA "${List_name}"
+exit 0

@@ -1,0 +1,14 @@
+# 5
+VERBOSE=true
+test_func_wi_return_MTA printv_tty_MTA "\"Test.\"\\n $(tty)" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA printv_tty_MTA "Test. foobar" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA printv_tty_MTA "Test.\\n" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA printv_tty_MTA "This is a no quotes print test" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA printv_tty_MTA "\"This\x20is\x20a\x20quoted\x20string.\"\\n" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+unset VERBOSE
+exit $PASSED

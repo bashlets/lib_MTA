@@ -1,0 +1,7 @@
+#! /bin/sh
+
+mkdir functests
+cp -p dist/* functests
+cp -p calls/no_MTA/*.calls functests
+cd functests
+./mk_func_tests

@@ -1,0 +1,12 @@
+# 5
+test_func_wi_return_MTA "arg_type_MTA" "444"  "num"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "arg_type_MTA" "foobar" "alpha"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "arg_type_MTA" "/usr/local"  "filepath"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "arg_type_MTA" "@foo_bar@"  "printable"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "arg_type_MTA" "444foo"  "alphanum"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

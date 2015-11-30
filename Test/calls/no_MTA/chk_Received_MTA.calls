@@ -1,0 +1,8 @@
+# 3
+test_func_wi_return_MTA chk_Received_MTA "./foreign_msg smtp.unr.edu unr.edu" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_Received_MTA "./foreign_msg smtp.unr.edu unr.edu,charter.net" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_Received_MTA "./email_msg  aurora.localhost.localdomain  localhost.localdomain" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

@@ -1,0 +1,8 @@
+# 3
+test_func_wi_return_MTA flip_flop_MTA true none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA flip_flop_MTA true null
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA flip_flop_MTA null true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

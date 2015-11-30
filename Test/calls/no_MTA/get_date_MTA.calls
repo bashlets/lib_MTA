@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA get_date_MTA no_args_required "$(date +"%b %e %T")"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

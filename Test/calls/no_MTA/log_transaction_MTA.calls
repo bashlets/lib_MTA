@@ -1,0 +1,12 @@
+# 2
+unset LIST_TRANS_LOG
+test_func_wi_return_MTA log_transaction_MTA "Transaction test" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+export LIST_TRANS_LOG="TRANS.log"
+cat /dev/null > ${LIST_TRANS_LOG}
+chmod 666 ${LIST_TRANS_LOG}
+test_func_wi_return_MTA log_transaction_MTA "Transaction test" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+rm -f ${LIST_TRANS_LOG}
+unset LIST_TRANS_LOG
+exit $PASSED

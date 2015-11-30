@@ -1,0 +1,5 @@
+#                   Configuration Information for Lib_MTA                    #
+##############################################################################
+LIB_MTA="{prefix}/lib/lib_MTA{-VERS}/lib_MTA{.VERS}.sh"
+SPECIAL_LIST_CFG_DIR="{prefix}/special_lists/cfg_files"
+export LIB_MTA SPECIAL_LIST_CFG_DIR

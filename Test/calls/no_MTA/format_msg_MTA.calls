@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA format_msg_MTA "foo@bar.com foo@bar.com foobar foobar" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

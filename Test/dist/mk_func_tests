@@ -1,0 +1,66 @@
+#! /bin/bash
+
+[[ "${1}" ]] && mta="${1}"
+oIFS=$IFS
+IFS='`'
+flag=
+test_file="Test_lib_MTA.sh"
+echo "#! /bin/bash" > "$test_file"
+chmod 0755 "$test_file"
+echo >> "$test_file"
+echo "[[ ! -f ../../Install/lib_MTA.sh ]] && echo \"Build lib_MTA first.\" && \
+exit 1" >> "$test_file"
+echo "PASSED=0" >> "$test_file"
+echo "FAILED=0" >> "$test_file"
+echo "TOTAL_TESTS=0" >> "$test_file"
+echo "MTA=$mta" >> "$test_file"
+echo "for file in *.calls" >> "$test_file"
+echo "do" >> "$test_file"
+echo "    Line=\$(cat \$file | head -1)" >> "$test_file"
+echo "    [[ \${Line} =~ ^\#[\ ]([0-9]+)\$ ]] && {" >> "$test_file"
+echo "        calls=\${BASH_REMATCH[1]}" >> $test_file
+echo "        TOTAL_TESTS=\$((TOTAL_TESTS + calls))" >> "$test_file"
+echo "    }" >> "$test_file"
+echo "done" >> "$test_file"
+echo >> "$test_file"
+      
+while read -r Line; do
+    if [[ $Line =~ ^(.*)\ [\(][\)]\ [\{].*$ ]]; then
+        F_name="./${BASH_REMATCH[1]}_test"
+        echo "sleep .5s" >> "$test_file"
+        echo "$F_name \$MTA || : \$((PASSED=PASSED+\${?}))" >> "$test_file"
+    fi
+    if [[ ! -s "$F_name" || "${flag}" ]]; then
+        flag=true
+        if [[ ! $Line =~ ^[\}]$ ]]; then
+            if [[ $Line =~ ^(.*)\ [\(][\)]\ [\{].*$ ]]; then
+                real_name="${BASH_REMATCH[1]}"
+                Func_name="T_${BASH_REMATCH[1]}"
+                echo "#! /bin/bash" > "$F_name"
+                chmod 755 "$F_name"
+                echo >> "$F_name"
+                echo "source ../../Install/lib_MTA.sh" >> "$F_name" 
+                echo "#------------------------------------------\
+-------------------------------"  >> "$F_name"
+                echo "T_${Line}" >> "$F_name"
+            else
+                [[ "$F_name" ]] && echo $Line >> "$F_name"
+            fi
+        else
+            echo $Line >> "$F_name"
+            read -r Line && echo $Line >> "$F_name"
+            echo "PASSED=0" >> "$F_name"
+            if [[ -s "./$real_name.calls" ]]; then
+                cat $real_name.calls >> "$F_name"
+            elif [[ ! -f "./$real_name.calls" ]]; then
+                cat /dev/null > ./$real_name.calls
+            fi
+            flag=
+        fi
+    fi
+done < /usr/local/development/lib_MTA/Lib/lib_MTA_sh
+    
+echo "printf \"\nTests passed = \${PASSED}\n\"" >> "$test_file"
+echo "printf \"Tests failed = \$((TOTAL_TESTS-PASSED))\n\"" >> "$test_file"
+IFS=$oIFS
+exit 0

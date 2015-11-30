@@ -1,0 +1,90 @@
+#                              testlist.cfg                                  #
+#           Example Configuration file for special list "testlist"           #
+##############################################################################
+# All of the following  options are either 'set', i.e. equal some value      #
+# or are 'unset', i.e. equal nothing.                                        #
+# set: OPTION="foobar"                                                       #
+# unset: OPTION=                                                             #
+# Options which are unset are turned off                                     #
+# Options which are set, are turned on using the value given.                #
+# OPTION=off or OPTION=false actually turns on OPTION with a meaningless     #
+# value!                                                                     #
+##############################################################################
+
+# ----------------------------------------------------------------------------
+# Filter out mailer error messages? (true or unset)
+# ----------------------------------------------------------------------------
+NO_MAIL_ERR=true
+
+# ----------------------------------------------------------------------------
+# Filter out messages with LIKELY SPAM in the Subject line? (true or unset)
+# ----------------------------------------------------------------------------
+NO_SPAM=true
+
+# ----------------------------------------------------------------------------
+# Prohibit attachments? (true or unset)
+# ----------------------------------------------------------------------------
+NO_ATTACHMENTS=true
+
+# ----------------------------------------------------------------------------
+# Prohibit vacation messages to the list? (true or unset)
+# ----------------------------------------------------------------------------
+NO_VACATION=true
+
+# ----------------------------------------------------------------------------
+# Allow only local senders? (true or unset)
+# ----------------------------------------------------------------------------
+MUST_BE_LOCAL=
+
+# ----------------------------------------------------------------------------
+# Require authentication to send? (true or unset)
+# ----------------------------------------------------------------------------
+AUTH_REQUIRED=
+
+# ----------------------------------------------------------------------------
+# Allow list members who are not officially authorized to post to the list
+# to reply to an alternate email address? (alt_addr or unset)
+# AUTH_REQUIRED must be set if you want to use ALT_ADDRESS.
+# ----------------------------------------------------------------------------
+ALT_ADDRESS=
+
+# ----------------------------------------------------------------------------
+# Spoof the From: address? (spoof address in <brackets> or unset)
+# ----------------------------------------------------------------------------
+SPOOF='<Management@some_corp.com>'
+
+# ----------------------------------------------------------------------------
+# If SPOOF set, spoof the Reply-To:? (reply-to address in <brackets> or unset)
+# Can be unset, even if SPOOF is set.
+# Set it to "${SPOOF}" if you want it the same as SPOOF
+# ----------------------------------------------------------------------------
+SPOOF_REPLY="${SPOOF}"
+
+# ----------------------------------------------------------------------------
+# The real list file name (different list file name or unset)
+# Usually the same as the list name, but different if you want to use an
+# existing, different special list file for the list addresses
+# ----------------------------------------------------------------------------
+REAL_LIST=
+
+# ----------------------------------------------------------------------------
+# The name of the alias pointing to the actual list file.  The longer and
+# more random the -[suffix], the safer the alias is from accidental
+# invocation by unwanted senders.  The suffix should probably also be
+# different for every list.  SETTING THIS IS MANDATORY
+# ----------------------------------------------------------------------------
+FINAL="testlist-GXq1P97julh"
+
+# ----------------------------------------------------------------------------
+# Add a footer to the message? (footer content or unset)
+# Footer content should be in the form of a here document.
+# See the man page for bash for here document explanation.
+# ----------------------------------------------------------------------------
+FOOTER=
+# ----------------------------------------------------------------------------
+# Example of setting FOOTER with a here document:
+# FOOTER=$(cat << FTR
+# This is a sample footer.
+# Blah, blah, blah.
+# More blah, blah, blah.
+# FTR)

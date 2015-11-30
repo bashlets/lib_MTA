@@ -1,0 +1,6 @@
+# 2
+test_func_wi_return_MTA remove_file_MTA "pipe1 pipe2" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA remove_file_MTA file1 none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

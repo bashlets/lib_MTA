@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA return_email_MTA "./email_msg this is a test." none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

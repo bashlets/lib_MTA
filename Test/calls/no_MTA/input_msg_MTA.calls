@@ -1,0 +1,4 @@
+# 1
+printf "This is a test message.\ns\n" | test_func_wi_return_MTA input_msg_MTA none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

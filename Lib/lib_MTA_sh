@@ -1,0 +1,1453 @@
+#-----------------------------------------------------------------------------
+arg_type_MTA () {
+    # Args: [argument]
+
+    local prnt="\!\@\#\$\%\^\&\*\(\)\{\}\<\>\_\+\~\`\\\|\,\.\/\?\"\'\;\:\=\-"
+
+    [[ ${1} =~ ^[:blank:]*$ ]] && {
+        echo unset; return 0
+    }
+    [[ ${1} =~ ^[0-9\.]*$ ]] && {
+        echo num; return 0
+    }
+    [[ ${1} =~ ^[a-zA-Z]*$ ]] && {
+        echo alpha; return 0
+    }
+    [[ ${1} =~ ^[a-zA-Z0-9]*$ ]] && {
+        echo alphanum; return 0
+    }
+    [[ ${1} =~ ^[a-zA-Z0-9\.\/\_\-]*$ ]] && {
+        echo filepath; return 0
+    }
+    [[ ${1} =~ ^[a-zA-Z0-9${prnt}]*$ ]] && {
+        echo printable; return 0
+    }
+    relay_err_MTA "Unknown 'type' in ${FUNCNAME}."
+    echo unknown; return 1
+}
+#-----------------------------------------------------------------------------
+printv_tty_MTA () {
+    # Args: [string]
+    # Optional: [terminal]
+
+    local terminal=${TTY} verbose=${VERBOSE}
+
+    [[ ${#@} -gt 2 ]] && {
+        relay_err_MTA "Runaway arguments to ${FUNCNAME}..use quotes."
+        return 1
+    }
+    [[ "${2}" ]] && {
+        if [[ -c "${2}" ]]; then
+            terminal=${2}
+        else
+            relay_err_MTA "Bad terminal or runaway arguments to ${FUNCNAME}?..use quotes."
+            return 1
+        fi
+    }
+    [[ ! "${terminal}" ]] && terminal=$(tty)
+    [[ "${verbose}" ]] && {
+        printf "${1}" > ${terminal} 2>/dev/null || {
+            relay_err_MTA "'printf' to terminal failed in ${FUNCNAME}."
+            return 1
+        }
+    }
+    return 0
+}
+#-----------------------------------------------------------------------------
+printf_tty_MTA () {
+    # Args: [string]
+    # Optional: [terminal] 
+
+    local terminal="${TTY}" arg2
+
+    [[ ${#@} -gt 2 ]] && {
+        relay_err_MTA "Runaway arguments to ${FUNCNAME}..use quotes."
+        return 1
+    }
+    [[ "${2}" ]] && {
+        if [[ -c "${2}" ]]; then
+            terminal=${2}
+        else
+            relay_err_MTA "Bad terminal or runaway arguments to ${FUNCNAME}?..use quotes."
+            return 1
+        fi
+    }
+    [[ ! "${terminal}" ]] && terminal=$(tty)
+    printf "${1}" > ${terminal} &2>/dev/null || {
+        relay_err_MTA "'printf' to ${terminal} failed in ${FUNCNAME}."
+        return 1
+    }
+    return 0
+}
+#-----------------------------------------------------------------------------
+get_service_MTA () {
+    # Args: [service file_descriptor]
+    # Optional: [time_out]
+
+    local Line Capability Separator Service rc=1 Match= time_out=40
+
+    [[ "${3}" ]] && time_out=${3}
+
+    while read -t ${time_out} Line; do
+        print_server_MTA "${Line}"
+        Capability=${Line:4}
+        Separator=${Line:3:1}
+        Service=${Capability:0:${#1}}
+        [[ "${Service}" = "${1}" ]] && {
+            Match="${Line}"
+            rc=0
+        }
+        [[ ${Separator} != "-" ]] && break
+        time_out=1
+    done <&${2}
+    echo "${Match}"
+    return $rc
+}
+#-----------------------------------------------------------------------------
+query_MTA () {
+    # Args: [client_host MTA_server MTA_port service] in order
+    # Optional: [time_out]
+
+    local Line Capability Separator Service rc=1
+    local time_out=${TIME_OUT} FD1
+
+    [[ "${5}" ]] && time_out="${5}"
+    [[ ! "${time_out}" ]] && time_out=20
+
+    open_fd_MTA "/dev/tcp/${2}/${3}" || {
+        relay_err_MTA "Open of file descriptor for /dev/tcp/${2}/${3} failed."
+        return 1
+    }
+    FD1=${FD}
+    read_MTA 220 ${FD1} || {
+        relay_err_MTA "Connection timed out."
+        return 1
+    }
+    send_MTA "ehlo ${1}" ${FD1}
+    while read -t ${time_out} Line; do 
+        print_server_MTA "${Line}"
+        Capability=${Line:4}
+        Separator=${Line:3:1}
+        Service=${Capability:0:${#4}}
+        [[ "${Service}" = "${4}" ]] && {
+           rc=0; echo true
+        }
+        [[ ${Separator} != "-" ]] && break
+    done <&${FD1}
+
+    send_MTA "quit" ${FD1} && read_MTA 221 ${FD1}
+    close_fd_MTA ${FD1}
+    return ${rc}
+}
+#-----------------------------------------------------------------------------
+flip_flop_MTA () {
+    # Args: []
+    # Optional: [flag]
+
+    local flag="${1}"
+
+    [[ "${flag}" ]] && return 0
+    echo true && return 0
+}
+#-----------------------------------------------------------------------------
+send_MTA () {
+    # Args: [ESMTP_cmd file_descriptor]
+
+    print_client_MTA "${1}"
+    printf "${1}\r\n" >&${2}
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+read_MTA () {
+    # Args: [status_code file_descriptor]
+    # Optional: [time_out]
+
+    local Line Separator StatusCode do_count
+    local count=0 time_out=${TIME_OUT}
+
+#     [[ ${1} =~ ^[0-9]\{3\}$ ]] || {
+     [[ ${1} =~ ^[0-9][0-9][0-9]$ ]] || {
+        relay_err_MTA "Bad status code argument."
+        return 1
+    }
+
+    [[ "${3}" ]] && time_out=${3}
+    [[ ! "${time_out}" ]] && time_out=20
+    while [ ${count} -lt ${time_out} ]
+    do
+        read -u ${2} Line
+        StatusCode=${Line:0:3}
+        Separator=${Line:3:1}
+        print_server_MTA "${Line}"
+        [[ ${Separator} != "-" ]] && break
+        do_count=$(flip_flop_MTA ${do_count})
+        [[ "${do_count}" ]] && {
+            : $((count++)); printv_tty_MTA ".."
+        }
+        sleep .5s
+    done 
+    printv_tty_MTA "\n"
+    [[ ${StatusCode} -eq ${1} ]] && return 0
+    return 1
+}
+#-----------------------------------------------------------------------------
+ehlo_MTA () {
+    # Args: [client_host MTA_server MTA_port] in order
+
+    local FD1
+    open_fd_MTA "/dev/tcp/${2}/${3}" || {
+        relay_err_MTA "Could not open file descriptor for /dev/tcp/${2}/${3}"
+        return 1
+    }
+    FD1=${FD}
+    read_MTA 220 ${FD1} || {
+        relay_err_MTA "Connection timed out."
+        return 1
+    }
+    send_MTA "ehlo ${1}" ${FD1} && read_MTA 250 ${FD1}
+    send_MTA "quit" ${FD1} && read_MTA 221 ${FD1}
+    close_fd_MTA ${FD1}
+    return 0
+}
+#-----------------------------------------------------------------------------
+relay_err_MTA () {
+    # Args: [error_string]
+
+    printf "${@}\n" >&2
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+get_username_MTA () {
+    # Args: [MTA_server]
+    local rc
+
+    read -p "Enter your username on ${1}: "
+    rc=${?}
+    printf "${REPLY}"
+    return ${rc}
+}
+#-----------------------------------------------------------------------------
+get_password_MTA () {
+    # Args: [MTA_server]
+    local rc=0 rc2=0 password="" char="0"
+
+    printf_tty_MTA "Enter your password on ${1}: "
+    while [ -n "${char}" ]
+    do
+        read -n 1 -s char
+        rc=${?}
+        [[ ${rc} -gt 0 ]] && rc2=${rc}
+        password="${password}${char}"
+        printf_tty_MTA "*"
+    done
+    printf_tty_MTA "\n"
+    printf "${password}"
+    return ${rc2}
+}
+#-----------------------------------------------------------------------------
+print_client_MTA () {
+    # Args: [ESMTP_cmd]
+
+    printv_tty_MTA "C-> ${1}\n"
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+print_server_MTA () {
+    # Args: [ESMTP_cmd_response]
+
+    printv_tty_MTA "<-S ${1}\n"
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+close_fd_MTA () {
+    # Args: [file_descriptor]
+
+    unset FD
+    eval "exec ${1}<&-"
+    eval "exec ${1}>&-"
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+get_open_fd_MTA () {
+    # Args: []
+
+    local index=1 prgm=$(basename ${0}) tmp="/tmp/.lsof_out"
+    local Line Conflict fd FD_A
+
+    lsof -a -p $$ -d3-9 2>/dev/null > ${tmp}
+    while read Line
+    do
+        [[ ${Line} =~ ${prgm:0:9} ]] && {
+            [[ ${Line} =~ ^.*[\ ]([0-9]+)[urw][^0-9].*$ ]] && {
+                    FD_A[${index}]=${BASH_REMATCH[1]}
+            }; : $((index++))
+        }
+    done < ${tmp}
+    rm -f ${tmp}
+    for fd in {3..4} {6..9}; do
+        index=1; Conflict=
+        while [[ ${index} -le ${#FD_A[*]} ]]; do
+            [[ ${FD_A[${index}]} = $fd ]] && {
+                Conflict=true
+            }; : $((index++))
+        done
+        [[ ! "${Conflict}" ]] && { OPEN_FD=${fd}; return 0; }
+    done
+    relay_err_MTA "Could not find open file descriptor."
+    return 1
+}
+#-----------------------------------------------------------------------------
+open_fd_MTA () {
+    # Args: [file]
+    # Optional: [file_descriptor]
+
+    local f_dscrptr
+
+    get_open_fd_MTA && {
+        f_dscrptr=${OPEN_FD}
+        [[ "${2}" ]] && f_dscrptr=${2}
+        eval "exec ${f_dscrptr}<>\"\${1}\""
+        FD=${f_dscrptr}
+        return 0
+    }
+    relay_err_MTA "Could not open file descriptor."
+    return 1
+}
+#-----------------------------------------------------------------------------
+create_pipe_MTA () {
+    # Args: [pipe_file]
+
+    mkfifo -m 0644 ${1} && echo ${1}
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+remove_file_MTA () {
+    # Args: [files]
+
+    rm -f ${@} || return 1
+    return 0
+}
+#-----------------------------------------------------------------------------
+create_tmp_MTA () {
+    # Args: [temp_file]
+
+    cat /dev/null > ${1} && {
+        chmod 600 ${1}
+        echo ${1}
+    }
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+strip_rcpts_MTA () {
+    # Args: [recipients]
+
+    rcpts=$(echo "${@}" | sed  -e 's/[^\<\>\,]*</</g' -e 's/></>,</g')
+    oIFS=${IFS}
+    IFS=','
+    for rcpt in ${rcpts}; do
+        [[ ! "${rcpt}" =~ ^\<.*\@.*\>$ ]] && {
+            IFS=${oIFS}
+            return 1
+        }
+    done
+    IFS=${oIFS}
+    echo "${rcpts}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+wait_for_MTA () {
+    # Args: [statuscode temp_file]
+    # Optional: [time_out]
+
+    local time_out="${TIME_OUT}"
+    local count=0 arg1 arg2 code Code word Word Type
+
+    [[ ${#@} -gt 3 ]] && {
+        relay_err_MTA "Too many arguments to ${FUNCNAME}."
+        return 1
+    }
+    if [[ ${1} =~ ^(.*),(.*)$ || ${1} =~ ^(.*)$ ]]; then
+        arg1=${BASH_REMATCH[1]}; arg2=${BASH_REMATCH[2]}
+        Type=$(arg_type_MTA "${arg1}")
+    else
+        relay_err_MTA "Required argument to ${FUNCNAME} is missing."
+    fi
+
+    Type=$(arg_type_MTA "${arg1}")
+    if [[ ! ${arg2} ]]; then
+        if [[ ${Type} = 'num' ]]; then
+            code=${arg1}
+        else
+            word=${arg1}
+        fi
+    else
+        if [[ ${Type} = 'num' ]]; then
+            code=${arg1}; word=${arg2}
+        else
+            code=${arg2}; word=${arg1}
+        fi
+    fi
+    [[ ${code} =~ ^[0-9][0-9][0-9]$ ]] || {
+#    [[ ${code} =~ ^[0-9]\{3\}$ ]] || {
+        relay_err_MTA "Bad status code argument."
+        return 1
+    }
+    [[ "${word}" ]] && len_word=${#word}
+    [[ "${3}" ]] && time_out=${3}
+    [[ ! "${time_out}" ]] && time_out=30
+
+    while [ ${count} -lt ${time_out} ]; do 
+        sync
+        Line=$(tail -1 ${2})
+        [[ "${code}" ]] && Code=${Line:0:3}
+        [[ "${word}" ]] && Word=${Line:0:${len_word}}
+        if [[ "${Word}" && ${word} = ${Word} ]] || \
+           [[ "${Code}" && ${code} = ${Code} ]]; then
+            print_server_MTA "${Line}"
+            return 0
+        fi 
+        do_count=$(flip_flop_MTA ${do_count})
+        [[ "${do_count}" ]] && {
+            : $((count++)); printv_tty_MTA ".."
+        }
+        sleep .5s
+    done
+
+    if [[ "${code}" && ${code} != ${Code} ]] || \
+       [[ "${word}" && ${word} != ${Word} ]]; then
+        print_server_MTA "${Line}"
+        return 1
+    else
+        relay_err_MTA "No response from the server."
+        return 1
+    fi
+}
+#-----------------------------------------------------------------------------
+dump_tmp_MTA () {
+    # Args: [temp_file]
+    # Optional: [time_out verbose] in order
+
+    local time_out=${TIME_OUT} verbose="${VERBOSE}"
+    local count=0 arg2 arg3
+
+    [[ "${2}" ]] && {
+        arg2=$(arg_type_MTA "${2}")
+        [[ ${arg2} = 'num' ]]   && time_out=${2}
+        [[ ${arg2} = 'alpha' ]] && verbose=${2}
+    }
+    [[ "${3}" ]] && {
+        arg3=$(arg_type_MTA "${3}")
+        [[ ${arg3} = 'num' ]]   && time_out=${3}
+        [[ ${arg3} = 'alpha' ]] && verbose=${3}
+    }
+    [[ ! "${time_out}" ]] && time_out=30
+
+    sync
+    while [ ${count} -lt ${time_out} ]; do
+        if [[ ! -s ${temp_file} ]]; then
+            do_count=$(flip_flop_MTA ${do_count})
+            [[ "${do_count}" ]] && {
+                : $((count++)); printv_tty_MTA ".."
+            }
+            sleep .5s
+        else
+            printv_tty_MTA "\n"
+            [[ ${verbose} = 'true' ]] && cat ${1} | sed -e 's/^/<-S /'
+            return 0
+        fi
+    done
+    relay_err_MTA "No response from the server."
+    return 1
+}
+#-----------------------------------------------------------------------------
+get_tmp_service_MTA () {
+    # Args: [service temp_file]
+    # Optional: [time_out] in order
+
+    local time_out=${TIME_OUT} verbose="${VERBOSE}"
+    local count=0 Line
+
+    [[ "${3}" ]] && time_out=${3}
+    [[ ! "${time_out}" ]] && time_out=20
+
+    sync
+    while [ ${count} -lt ${time_out} ]
+    do
+        if ! grep -q "^250-" ${2}; then
+            do_count=$(flip_flop_MTA ${do_count})
+            [[ "${do_count}" ]] && {
+                : $((count++)); printv_tty_MTA ".."
+            }
+            sleep .5s
+        else
+            printv_tty_MTA "\n"
+            [[ ${verbose} = 'true' ]] && tail -20 ${2} | \
+            grep "^250" | sed -e 's/^/<-S /' > ${TTY}
+            Line=$(tail -20 ${2} | grep "${1}") && {
+                echo ${Line}
+                return 0
+            }
+            return 1
+        fi
+    done
+    relay_err_MTA "No response from the server."
+    return 1
+}
+#-----------------------------------------------------------------------------
+dump_MTA () {
+    # Args: [file_descriptor]
+    # Optional: [time_out verbose]
+
+    local time_out=40 verbose=${VERBOSE}
+    local Line rc=1
+
+    [[ "${2}" ]] && {
+        arg2=$(arg_type_MTA "${2}")
+        [[ ${arg2} = 'num' ]]   && time_out=${2}
+        [[ ${arg2} = 'alpha' ]] && verbose=${2}
+    }
+    [[ "${3}" ]] && {
+        arg3=$(arg_type_MTA "${3}")
+        [[ ${arg3} = 'num' ]]   && time_out=${3}
+        [[ ${arg3} = 'alpha' ]] && verbose=${3}
+    }
+
+    while read -u ${1} -t ${time_out} Line; do
+        [[ ${verbose} = 'true' ]] && {
+            printf "<-S ${Line}\n"
+            rc=${?}
+        }
+        time_out=1
+    done
+    return ${rc}
+}
+#-----------------------------------------------------------------------------
+set_plain_auth_64_MTA () {
+    # Args: [username password] in order
+
+    printf "%s\0%s\0%s" ${1} ${1} ${2} | base64
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+set_login_user_64_MTA () {
+    # Args: [username]
+
+    printf "%s" ${1} | base64
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+set_login_pass_64_MTA () {
+    # Args: [password]
+
+    printf "%s" ${1} | base64
+    return ${?} 
+}
+#-----------------------------------------------------------------------------
+relay_25_MTA () {
+    # Args: [client_host MTA_server sender recipients mail_msg] in order
+
+    local rcpts=$(strip_rcpts_MTA "${4}") rcpt
+
+    open_fd_MTA "/dev/tcp/${2}/25" || {
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    
+    FD1=${FD}
+    read_MTA 220 ${FD1} || {
+        relay_err_MTA "Connection timed out."
+        return 1
+    }
+    send_MTA "ehlo ${1}" ${FD1} && read_MTA 250 ${FD1}
+    send_MTA "mail from: ${3}" ${FD1} && read_MTA 250 ${FD1}
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${FD1} && read_MTA 250 ${FD1}
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${FD1} && read_MTA 354 ${FD1}
+    send_MTA "${5}" ${FD1} && send_MTA "." ${FD1} && read_MTA 250 ${FD1}
+    send_MTA "quit" ${FD1} && read_MTA 221 ${FD1}
+
+    close_fd_MTA ${FD1}
+    return 0
+}
+#-----------------------------------------------------------------------------
+relay_465_MTA () {
+    # Args: [client_host MTA_server sender recipients mail_msg] in order
+
+    local tls Err_File="/dev/null" ssl_opts="-ign_eof -connect ${2}:465"
+    local rcpts=$(strip_rcpts_MTA "${4}") rcpt Auth Method
+
+    [[ "${LOG_ERRORS}" ]] && log_relay_errs_MTA "${LOG_ERRORS}"
+
+    which openssl >/dev/null 2>&1 || {
+        relay_err_MTA "You need openssl to relay mail with tls encryption."
+        return 1
+    }
+
+    if [[ "${SECRETS}" && -s "${SECRETS}/secrets.${2}" ]]; then
+        source "${SECRETS}/secrets.${2}"
+    else
+        User=$(get_username_MTA ${2}); Pass=$(get_password_MTA ${2})
+        plain_auth=$(set_plain_auth_64_MTA "${User}" "${Pass}")
+        login_user=$(set_login_user_64_MTA "${User}")
+        login_pass=$(set_login_pass_64_MTA "${Pass}")
+    fi
+
+    PIPE=$(create_pipe_MTA "/tmp/.pipe1.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    open_fd_MTA "${PIPE}" || {
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P1=${FD}
+    Tmp=$(create_tmp_MTA "/tmp/.esmtp.$$") || {
+        relay_err_MTA "Temporary file creation failed."; return 1
+    }
+
+    openssl s_client ${ssl_opts} <&${P1} >> "${Tmp}" &
+    ssl_pid=${!}
+
+    remove_file_MTA ${PIPE}
+    dump_tmp_MTA ${Tmp}
+    send_MTA "ehlo ${1}" ${P1}
+    Auth=$(get_tmp_service_MTA AUTH ${Tmp})
+    if [[ $Auth =~ ^.*AUTH[\ ](.*)$ ]]; then
+        for Method in ${BASH_REMATCH[1]}; do
+            [[ $Method =~ PLAIN ]] && Plain=true
+            [[ $Method =~ LOGIN ]] && Login=true
+        done
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}
+        relay_err_MTA "No supported authentication methods."
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    if [[ ${Plain} = 'true' ]]; then
+        send_MTA "auth plain ${plain_auth}" ${P1}
+    elif [[ ${Login} = 'true' ]]; then
+        send_MTA "auth login" ${P1}    && wait_for_MTA 334 ${Tmp}
+        send_MTA "${login_user}" ${P1} && wait_for_MTA 334 ${Tmp}
+        send_MTA "${login_pass}" ${P1}
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}
+        relay_err_MTA "No supported authentication methods."
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    wait_for_MTA 235 ${Tmp}
+    send_MTA "mail from: ${3}" ${P1} && wait_for_MTA 250 ${Tmp}
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${P1} && wait_for_MTA 250 ${Tmp}
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${P1} && wait_for_MTA 354 ${Tmp}
+    send_MTA "${5}" ${P1} && send_MTA "." ${P1} && wait_for_MTA 250 ${Tmp}
+    send_MTA "quit" ${P1} && wait_for_MTA "221,closed" ${Tmp}
+    close_fd_MTA ${P1}
+    remove_file_MTA ${Tmp}
+    kill -9 ${ssl_pid} > /dev/null 2>&1
+    return 0
+}
+#-----------------------------------------------------------------------------
+relay_587_MTA () {
+    # Args: [client_host MTA_server sender recipients mail_msg] in order
+
+    local ssl_opts="-starttls smtp -bugs -ign_eof -connect ${2}:587"
+    local tls=$(query_MTA ${1} ${2} 587 STARTTLS) 
+    local rcpts=$(strip_rcpts_MTA "${4}") rcpt Auth Method
+
+    [[ "${LOG_ERRORS}" ]] && log_relay_errs_MTA "${LOG_ERRORS}"
+
+    which openssl >/dev/null 2>&1 || {
+        relay_err_MTA "You need openssl to relay mail with TLS encryption."
+        exit 1
+    }
+    [[ ! "${tls}" ]] && {
+        relay_err_MTA "No secure relay support at ${2}."; return 1
+    }
+    if [[ "${SECRETS}" && -s "${SECRETS}/secrets.${2}" ]]; then
+        source "${SECRETS}/secrets.${2}"
+    else
+        User=$(get_username_MTA ${2})
+        Pass=$(get_password_MTA ${2})
+        plain_auth=$(set_plain_auth_64_MTA "${User}" "${Pass}")
+        login_user=$(set_login_user_64_MTA "${User}")
+        login_pass=$(set_login_pass_64_MTA "${Pass}")
+    fi
+
+    PIPE1=$(create_pipe_MTA "/tmp/.pipe1.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    open_fd_MTA "${PIPE1}" || {
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P1=${FD}
+    Tmp=$(create_tmp_MTA "/tmp/.esmtp.$$") || {
+        relay_err_MTA "Temporary file creation failed."; return 1
+    }
+
+    openssl s_client ${ssl_opts} <&${P1} >> "${Tmp}" &
+    ssl_pid=${!}
+
+    remove_file_MTA ${PIPE1}
+    dump_tmp_MTA ${Tmp}
+    send_MTA "ehlo ${1}" ${P1}
+    Auth=$(get_tmp_service_MTA AUTH ${Tmp})
+    if [[ $Auth =~ ^.*AUTH[\ ](.*)$ ]]; then
+        for Method in ${BASH_REMATCH[1]}; do
+            [[ $Method =~ PLAIN ]] && Plain=true
+            [[ $Method =~ LOGIN ]] && Login=true
+        done
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}
+        relay_err_MTA "No supported authentication methods."
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    if [[ ${Plain} = 'true' ]]; then
+        send_MTA "auth plain ${plain_auth}" ${P1}
+    elif [[ ${Login} = 'true' ]]; then
+        send_MTA "auth login" ${P1}    && wait_for_MTA 334 ${Tmp}
+        send_MTA "${login_user}" ${P1} && wait_for_MTA 334 ${Tmp}
+        send_MTA "${login_pass}" ${P1}
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+    kill ${ssl_pid} > /dev/null 2>&1
+        relay_err_MTA "No supported authentication methods."
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    wait_for_MTA 235 ${Tmp}
+    send_MTA "mail from: ${3}" ${P1} && wait_for_MTA 250 ${Tmp}
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${P1} && wait_for_MTA 250 ${Tmp}
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${P1} && wait_for_MTA 354 ${Tmp}
+    send_MTA "${5}" ${P1} && send_MTA "." ${P1} && wait_for_MTA 250 ${Tmp}
+    send_MTA "quit" ${P1} && wait_for_MTA "221,closed" ${Tmp}
+    close_fd_MTA ${P1}; remove_file_MTA ${Tmp}
+    kill -9 ${ssl_pid} > /dev/null 2>&1
+    return 0
+}
+#-----------------------------------------------------------------------------
+pipe_relay_MTA () {
+    # Args: [client_host MTA_server port sender recipients mail_msg] in order
+
+    [[ "${LOG_ERRORS}" ]] && log_relay_errs_MTA "${LOG_ERRORS}"
+
+    case ${3} in
+        465) local ssl_opts="-ign_eof -connect ${2}:${3}"
+        ;;
+        587) local ssl_opts="-starttls smtp -bugs -ign_eof -connect ${2}:${3}"
+             local tls=$(query_MTA ${1} ${2} 587 STARTTLS)
+             [[ ! "${tls}" ]] && {
+                 relay_err_MTA "No secure relay support at ${2}."
+                 return 1
+             }
+        ;;
+          *) relay_err_MTA "Invalid port."; return 1
+        ;;
+    esac
+
+    local rcpts=$(strip_rcpts_MTA "${5}") rcpt Plain Login Method
+
+    which openssl >/dev/null 2>&1 || {
+        relay_err_MTA "You need openssl to relay mail with TLS."; return 1
+    }
+
+    if [[ "${SECRETS}" && -s "${SECRETS}/secrets.${2}" ]]; then
+        source "${SECRETS}/secrets.${2}"
+    else
+        User=$(get_username_MTA ${2}); Pass=$(get_password_MTA ${2})
+        plain_auth=$(set_plain_auth_64_MTA "${User}" "${Pass}")
+        login_user=$(set_login_user_64_MTA "${User}")
+        login_pass=$(set_login_pass_64_MTA "${Pass}")
+    fi
+
+    PIPE1=$(create_pipe_MTA "/tmp/.pipe1.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    open_fd_MTA "${PIPE1}" || {
+        remove_file_MTA ${PIPE1}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P1=${FD}
+    PIPE2=$(create_pipe_MTA "/tmp/.pipe2.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    open_fd_MTA "${PIPE2}" || {
+        close_fd_MTA ${P1};
+        remove_file_MTA ${PIPE1} ${PIPE2}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P2=${FD}
+
+    openssl s_client ${ssl_opts} <&${P1} >&${P2} &
+    ssl_pid=${!}
+
+    remove_file_MTA ${PIPE1} ${PIPE2}
+    dump_MTA ${P2}; send_MTA "ehlo ${1}" ${P1}
+    Auth=$(get_service_MTA AUTH ${P2})
+    if [[ $Auth =~ ^.*AUTH[\ ](.*)$ ]]; then
+        for Method in ${BASH_REMATCH[1]}; do
+            [[ $Method =~ PLAIN ]] && Plain=true
+            [[ $Method =~ LOGIN ]] && Login=true
+        done
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        relay_err_MTA "No supported authentication methods."; return 1
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    if [[ ${Plain} = 'true' ]]; then
+        send_MTA "auth plain ${plain_auth}" ${P1}
+    elif [[ ${Login} = 'true' ]]; then
+        send_MTA "auth login"    ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_user}" ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_pass}" ${P1}
+    else
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        relay_err_MTA "No supported authentication methods."
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        return 1
+    fi
+
+    read_MTA 235 ${P2}
+    send_MTA "mail from: ${4}" ${P1} && read_MTA 250 ${P2}
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${P1} && read_MTA 250 ${P2}
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${P1} && read_MTA 354 ${P2}
+    send_MTA "${6}" ${P1} && send_MTA "." ${P1} && read_MTA 250 ${P2}
+    send_MTA "quit" ${P1} && read_MTA 221 ${P2}
+    close_fd_MTA ${P1}; close_fd_MTA ${P2}
+    kill -9 ${ssl_pid} > /dev/null 2>&1
+    return 0
+}
+#-----------------------------------------------------------------------------
+list_error_MTA () {
+    # Args: [error_msg]
+
+    local Err="$(basename ${0}) error: ${@}"
+    local Date=$(get_date_MTA)
+
+    [[ "${LIST_ERROR_LOG}" && -w ${LIST_ERROR_LOG} ]] && {
+        printf "${Date} ${Err}\n" >> ${LIST_ERROR_LOG}
+        return 0
+    }
+    echo ${Err} >&2
+    return 1
+}
+#-----------------------------------------------------------------------------
+return_email_MTA () {
+    # Args: [msg_file reason] in order
+
+    local To=$(get_To_MTA ${1})
+    local Site=$(echo ${To} | awk -F@ '{print $2}')
+    local From=$(get_From_MTA ${1})
+    local User=$(echo ${From} | awk -F@ '{print $1}')
+    [[ ! "${Site}" ]] && Site='localhost'
+
+shift
+(
+printf "From: postmaster@${Site}\n\
+To: ${From}\n\
+Subject: Disallowed email to address ${To}\n\n\
+Dear ${User},\n\n\
+Sorry, but ${@}.\n\n\
+Virtually,\n\n\
+postmaster@${Site}\n\n\
+--- returned message attached below ---\n\n"
+
+cat ${1}
+) | sendmail -f postmaster@${Site} "${From}"
+
+return ${?}
+
+}
+#-----------------------------------------------------------------------------
+get_To_MTA () {
+    # Args: [msg_file]
+    local re1="s/^To: //g"; re2="s/([^)]*)//g"; re3="s/^.*<//g"
+    local re4="s/>.*$//g"; re5="s/[     ]*//g"; re6="s/@.*//g"
+
+    grep "^To: " ${1} | head -1 | sed -e "${re1}" -e "${re2}" -e "${re3}" \
+    -e "${re4}" -e "${re5}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+get_From_MTA () {
+    # Args: [msg_file]
+    local  re1="s/^From: //g"; re2="s/([^)]*)//g"; re3="s/^.*<//g";
+    local re4="s/>.*$//g"; re5="s/[     ]*//g"
+
+    grep "^From: " ${1} | head -1 | sed -e  "${re1}" -e "${re2}" -e "${re3}" \
+    -e "${re4}" -e "${re5}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+get_Subject_MTA () {
+    # Args: [msg_file]
+
+    grep "^Subject: " ${1} | head -1 | sed -e 's/Subject: //'
+    return 0
+}
+#-----------------------------------------------------------------------------
+kill_vacation_MTA () {
+    # Args: [msg_file]
+    # Optional: [tokens]
+
+    local Subject=$(get_Subject_MTA ${1}) phrase tokens="${2}"
+
+    oIFS=${IFS}
+    IFS=','
+    
+    [[ ! "${tokens}" ]] && tokens="on vacation,autoreply,auto-reply,auto reply,out of office,automated response,away from my mail,away from my email"
+
+    shopt -s nocasematch
+    for phrase in ${tokens}
+    do
+        [[ ${Subject} =~ "${phrase}" ]] && {
+            shopt -u nocasematch
+            IFS=${oIFS}
+            return 1
+        }
+    done
+    shopt -u nocasematch
+    IFS=${oIFS}
+    return 0
+}
+#-----------------------------------------------------------------------------
+kill_mailer_errs_MTA () {
+    # Args: [msg_file]
+    # Optional: [tokens]
+
+    local From=$(get_From_MTA ${1}) token tokens="${2}"
+
+    [[ ! "${tokens}" ]] && tokens="root daemon postmaster postfix sendmail qmail exim"
+
+    shopt -s nocasematch
+    for token in ${tokens}
+    do
+        [[ ${From} =~ "${token}" ]] && {
+            shopt -u nocasematch
+            IFS=${oIFS}
+            return 1
+        }
+    done
+    shopt -u nocasematch
+    IFS=${oIFS}
+    return 0
+}
+#-----------------------------------------------------------------------------
+kill_attachments_MTA () {
+    # Args: [msg_file]
+
+    local To=$(get_To_MTA ${1})
+
+    if grep -q -i "multipart/" ${1}; then
+        if grep -q -i "Content-Disposition: attachment" ${1}; then
+            return 1
+        fi
+    fi
+
+    return 0
+}
+#-----------------------------------------------------------------------------
+chk_auth_MTA () {
+    # Args: [msg_file auth_file] in order
+
+    local From=$(get_From_MTA ${1}) Line
+
+    while read Line
+    do
+        [[ ${Line:0:1} = '#' ]] && continue
+        [[ ${From} =~ ${Line} ]] && return 0
+    done < ${2}
+    return 1
+
+}
+#-----------------------------------------------------------------------------
+chk_Subject_MTA () {
+    # Args: [msg_file]
+    # Optional: [token]
+
+    local Subject=$(get_Subject_MTA ${1}) Tkn="likely\ spam"
+
+    [[ "${2}" ]] && {
+        shift
+        Tkn="${@}"
+    }
+    shopt -s nocasematch
+    [[ ${Subject} =~ ${Tkn} ]] && {
+        shopt -u nocasematch
+        return 1
+    }
+    shopt -u nocasematch
+    return 0
+}
+#-----------------------------------------------------------------------------
+chk_Received_MTA () {
+    # Args: [msg_file local_MTA local_domains] in order
+
+    local Received_Content From By
+
+    shopt -s nocasematch
+    while read Line
+    do
+        if [[ ${Line:0:9} = "Received:" ]]; then
+            Received_Content=${Line:10}
+        elif [[ ${Line:0:5} = "From:" ]]; then
+            break
+        else
+            From=; By=
+            Received_Content="${Received_Content}${Line}"
+            [[ ${Received_Content} =~ ^.*(from.*)(by.*)$ ]] && {
+                From=${BASH_REMATCH[1]}
+                By=${BASH_REMATCH[2]}
+            }
+            [[ "${From}" && "${By}" ]] && {
+                [[ ${By} =~ ^.*by\ ${2} ]] && {
+                    oIFS=${IFS}
+                    IFS=','
+                    for domain in ${3}
+                    do
+                        [[ ${From} =~  ${domain} ]] && {
+                            IFS=${oIFS}
+                            shopt -u nocasematch
+                            return 0
+                        }
+                    done
+                    IFS=${oIFS}
+                }
+            }
+        fi
+    done < ${1}
+
+    shopt -u nocasematch
+    return 1
+}
+#-----------------------------------------------------------------------------
+add_footer_MTA () {
+    # Args: [msg_file footer] in order
+
+    local tmp_file=$(create_tmp_MTA "${1}.footer")
+    local multi_part_flag=0
+    local Boundary='fAll0as7fja9werpoiwqjoI1tgql5sdyaerfana90843t'
+    local html_ftr_line="<p>__________________________________________</p><p>"
+    local plain_ftr_line="\n__________________________________________\n"
+
+    shopt -s nocasematch
+    oIFS=${IFS}; IFS='~'
+    while read -r Line
+    do
+        if [[ ${Line} =~ boundary\=\"([^\"]*) || \
+              ${Line} =~ boundary\=([^\"]*) ]]; then
+            Boundary=${BASH_REMATCH[1]}
+        fi
+
+        if [[ ${Line} =~ "^.*content-type: text/plain.*$" ]]; then
+            while [[ ! "${Line}" =~ "^.*${Boundary}.*$" ]]
+            do
+                read -r Line || break
+                if [[ ! ${Line} =~ "^.*${Boundary}.*$" ]]; then
+                    echo ${Line} >> ${tmp_file}
+                fi
+            done
+            printf "${plain_ftr_line}${2}\n\n${Line}\n" >>  ${tmp_file}
+            multi_part_flag=1
+        elif [[ ${Line} =~ "^.*content-type: text/html.*$" ]]; then
+            while [[ ! ${Line} =~ "^.*<\/body>.*$" ]]
+            do
+                read -r Line || break
+                if [[ ! ${Line} =~ "^.*<\/body>.*$" ]]; then
+                    echo ${Line} >> ${tmp_file}
+                fi
+            done
+            Pre=$(echo "${Line}" | sed -e 's/<\/body.*>.*$//i')
+            Post=$(echo "${Line}" | sed -e 's/^.*<\/body>//i')
+            html_ftr="\n${Pre}${html_ftr_line}${2}</p></body>${Post}\n\n"
+            printf "${html_ftr}" >> ${tmp_file}
+        else
+            echo ${Line} >> ${tmp_file}
+        fi
+    done < ${1}
+
+    IFS=${oIFS}
+    if [[ multi_part_flag -eq 0 ]]; then
+        printf "${plain_ftr_line}${2}" >> ${1}
+        remove_file_MTA ${tmp_file}
+    else
+        mv -f ${tmp_file} ${1}
+    fi
+    shopt -u nocasematch
+    return 0
+}
+#-----------------------------------------------------------------------------
+alternate_reply_MTA () {
+    # Args: [msg_file alt_email_addr] in order
+
+    local To=$(get_To_MTA ${1})
+    local Site=$(echo ${To} | awk -F@ '{print $2}')
+    local From=$(get_From_MTA ${1})
+    local User=$(echo ${From} | awk -F@ '{print $1}')
+    [[ ! "${Site}" ]] && Site='localhost'
+(
+printf "From: postmaster@${Site}\n\
+To: ${From}\n\
+Subject: Disallowed email to address ${To}\n\n\
+Dear ${User},\n\n\
+This is an automated reponse.  You have replied directly to\n\
+${To}.\n\n\
+Instead, please reply to ${2}.\n\n\
+Virtually,\n\n\
+postmaster@${Site}\n\n\
+--- returned message attached below ---\n\n"
+cat ${1}
+) | sendmail -f postmaster@${Site} ${From}
+
+}
+#-----------------------------------------------------------------------------
+log_transaction_MTA () {
+    # Args: [transaction]
+
+    local Date=$(get_date_MTA)
+ 
+    [[ "${LIST_TRANS_LOG}" && -w ${LIST_TRANS_LOG} ]] && {
+        printf "${Date} $(basename ${0}): ${@} [completed]\n"  \
+        >> ${LIST_TRANS_LOG}
+        return 0
+    }
+    list_error_MTA "Can't write to log file ${LIST_TRANS_LOG}!"
+    return 1
+}
+#-----------------------------------------------------------------------------
+get_date_MTA () {
+    # Args: []
+
+    date +"%b %e %T"
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+input_sender_MTA () {
+    # Args: []
+    local sender token valid=
+
+    read -p "From: " sender
+    rc=${?}
+    for token in ${sender}
+    do
+        [[ ${token} =~ ^.*\@.*$ ]] && {
+            valid=true
+            if [[ ${token} =~ ^.*(\<.*\>).*$ ]]; then
+                token=${BASH_REMATCH[1]}
+                token=${token//\,/}
+            else
+                token=${token//\</}; token=${token//\>/}
+                token=${token//\,/}; token="<${token}>"
+            fi
+            break
+        }
+    done
+    [[ ! ${valid} = true ]] && return 1
+    printf "${token}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+input_rcpts_MTA () {
+    # Args: []
+
+    local valid= rcpts token tokens address addresses c1 c2
+
+    read -p "To: "  rcpts
+    rc=${?}
+    [[ ${rcpts} =~ ([^\ \<\>])\,([^\ \<\>]) ]] && {
+        matches=${#BASH_REMATCH[*]}
+        for ((i=1; i <= ${matches}; i++)); do
+            c1=${BASH_REMATCH[${i}]}
+            : $((i++))
+            c2=${BASH_REMATCH[${i}]}
+            rcpts=${rcpts//${c1}\,${c2}/${c1}${c2}}
+        done
+    }
+    oIFS=${IFS}
+    IFS=','
+    for tokens in ${rcpts}
+    do
+        IFS=${oIFS}
+        for token in ${tokens}
+        do
+            [[ ${token} =~ ^.*\@.*$ ]] && {
+                valid=true
+                if [[ ${token} =~ ^.*(\<.*\>).*$ ]]; then
+                    token=${BASH_REMATCH[1]}
+                    token=${token//\,/}
+                else
+                    token=${token//\</}; token=${token//\>/}
+                    token=${token//\,/}; token="<${token}>"
+                fi
+                token="${token},"
+            }
+            address="${address} ${token}"
+        done
+        addresses="${addresses} ${address}"
+        address=
+        IFS=','
+    done
+    IFS=${oIFS}
+    [[ ! ${valid} = true ]] && return 1
+    shopt -s extglob
+    addresses=${addresses##+( )}
+    addresses=${addresses//+( )/\ }
+    shopt -u extglob
+    addresses=${addresses%\,}
+    printf "${addresses}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+input_msg_help_MTA () {
+    # Args: []
+
+    help_msg="\
+\nCommand Summary:\n\
+\nEnter ->'s' on a line by itself to Send.\n\
+Enter ->'a' to on a line by itself to Attach files first before sending.\n\
+Enter ->'(Ctrl C)' at any time to abort message."
+
+    printf_tty_MTA "${help_msg}\n"
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+input_subject_MTA () {
+    # Args: []
+    local subject
+
+    read -p "Subject: " subject
+    rc=${?}
+    printf "${subject}"
+    return ${rc}
+}
+#-----------------------------------------------------------------------------
+input_msg_MTA () {
+    # Args: []
+    local Line Body rc=0 frc=0
+
+    while [ 1 ]
+    do
+        read Line
+        rc=${?}
+        [[ ${rc} -gt 0 ]] && frc=${rc}
+        [[ ${Line} = 's' || ${Line} = 'S' || ${Line} = 'a' || ${Line} = 'A' ]] && break
+        Body="${Body}\n${Line}"
+    done
+
+    [[  ${Line} = 'a' || ${Line} = 'A' ]] && [[ ${frc} -eq 0 ]] && frc=123
+    printf "${Body}"
+    return ${frc}
+}
+#-----------------------------------------------------------------------------
+input_attachments_MTA () {
+
+    local count=1 rc=0 Line
+
+    while [ 1 ]; do 
+        printf_tty_MTA "Full path of an attachment file (q to quit): "
+        read Line
+        [[ ${Line} = 'q' || ${Line} = 'Q' ]] && break
+        [[ ! -f ${Line} ]] && {
+            printf_tty_MTA "\nNo such file...try again.\n\n"
+            continue
+        }
+        [[ ! -r ${Line} ]] && {
+            printf "\nThe file you selected does not have read permission.\n\
+Change the permissions and try again.\n\n"
+            continue
+        }
+        [[ ! -s ${Line} ]] && {
+            printf_tty_MTA "\nThe file you selected is empty.\n\
+Cowardly lib_MTA does not want to attach an empty file.\n\n"
+            continue
+        }
+
+        FILE[${count}]="${Line}"
+        FILE_NAME[${count}]=$(basename ${Line})
+        MIME_TYPE[${count}]=$(get_mime_type_MTA ${FILE_NAME[${count}]})
+        [[ ${?} -gt 0 ]] && rc=${?}
+        : $((count++))
+    done
+    return ${rc}
+}
+#-----------------------------------------------------------------------------
+format_msg_MTA () {
+    # Args: [From Recipients Subject Body]
+
+    local Num_attachments=${#FILE[*]} Headers Message 
+
+    if [[ ! "${Num_attachments}" || ${Num_attachments} -eq 0 ]]; then
+        Headers="From: ${1}\r\nTo: ${2}\r\nSubject: ${3}\r\n"
+        Message="${Headers}\r\n${4}"
+    else
+        local Boundary=$(echo -n ${RANDOM}$$${RANDOM} | md5sum | base64)
+        local Email Base64 Attachments Attach_File
+
+        Boundary="${Boundary:4:36}"
+        Headers="From: ${1}\r\nTo: ${2}\r\nSubject: ${3}\r\nMIME-Version: 1.0"
+        Email="\
+${Headers}\r\n\
+Content-Type: multipart/mixed;\r\n\
+\tboundary=\"${Boundary}\"\r\n\
+X-Mailer: Lib_MTA\r\n\
+\nThis is a multi-part message in MIME format.\r\n\r\n\
+--${Boundary}\r\n\
+Content-Type: text/plain;\r\n\
+\tcharset=ISO-8859-1;\r\n\
+\tformat=flowed\r\n\
+Content-Transfer-Encoding: 7bit\r\n\
+Content-Disposition: inline\r\n\r\n\
+${4}"
+        for ((i=1; i <= Num_attachments; i++)); do
+            Base64=$(cat ${FILE[${i}]} | base64)
+            Attach_File[${i}]="\
+\n--${Boundary}\n\
+Content-Type: ${MIME_TYPE[${i}]};\r\n\
+\tname=\"${FILE_NAME[${i}]}\"\r\n\
+Content-Transfer-Encoding: base64\r\n\
+Content-Disposition: attachment;\r\n\
+\tfilename=\"${FILE_NAME[${i}]}\"\r\n\r\n\
+${Base64}"
+
+            Attachments="${Attachments}\r\n${Attach_File[${i}]}\r\n"
+        done
+
+        Message="${Email}${Attachments}\r\n--${Boundary}--\r\n"
+    fi
+    
+    printf "${Message}"
+    return 0
+}
+#-----------------------------------------------------------------------------
+get_mime_type_MTA () {
+    # Args: [attachment_file]
+
+    local token mime_type suffixes suffix
+    local Suffix=$(echo ${1##*.} | tr A-Z a-z)
+
+for token in "3dm,3dmf,qd3,qd3d;x-world/x-3dmf" \
+"a,arc,com,dump,exe,lhx,lzh,o,psd,saveme,zoo;application/octet-stream" "aab;application/x-authorware-bin" "aam;application/x-authorware-map" "aas;application/x-authorware-seg" "abc;text/vnd.abc" "acgi,htm,html,htmls,htx,shtml;text/html" "afl;video/animaflex" "ai,eps,ps;application/postscript" "aif,aifc,aiff;audio/aiff" "aim;application/x-aim" "aip;text/x-audiosoft-intra" "ani;application/x-navi-animation" "aos;application/x-nokia-9000-communicator-add-on-software" "aps;application/mime" "arj;application/arj" "art;image/x-jg" "asf;video/x-ms-asf" "asm,s;text/x-asm" "asp;text/asp" "asx;application/x-mplayer2" "au,snd;audio/basic" "avi;video/avi" "avs;video/avs-video" "bcpio;application/x-bcpio" "bin;application/mac-binary" "bm,bmp;image/bmp" "boo,book;application/book" "boz,bz2;application/x-bzip2" "bsh,shar;application/x-bsh" "bz;application/x-bzip" "c,c++,cc,conf,cxx,def,exp,f,f77,f90,for,g,h,hh,id,jav,list,log,lst,m,mar,sdml,text,txt;text/plain" "cat;application/vnd.ms-pki.seccat" "ccad;application/clariscad" "cco;application/x-cocoa" "cdf;application/cdf" "cha,chat;application/x-chat" "class;application/java" "cpio;application/x-cpio" "cpp;text/x-c" "cpt;application/mac-compactpro" "crl;application/pkcs-crl" "crt,cer;application/pkix-cert" "csh;text/x-script.csh" "css;application/x-pointplus" "dcr,dir,dxr;application/x-director" "deepv;application/x-deepv" "der;application/x-x509-ca-cert" "dif,dv;video/x-dv" "dl;video/dl" "doc,dot,w6w,wiz,word;application/msword" "dp;application/commonground" "drw;application/drafting" "dvi;application/x-dvi" "dwf;model/vnd.dwf" "dwg;application/acad" "dxf;application/dxf" "el;text/x-script.elisp" "elc;application/x-elc" "env;application/x-envoy" "es;application/x-esrehber" "etx;text/x-setext" "evy;application/envoy" "fdf;application/vnd.fdf" "fif;application/fractals" "fif;image/fif" "fli;video/fli" "flo,turbot;image/florian" "flx;text/vnd.fmi.flexstor" "fmf;video/x-atomic3d-feature" "fpx;image/vnd.fpx" "frl;application/freeloader" "funk,my,pfunk;audio/make" "g3;image/g3fax" "gif;image/gif" "gl;video/gl" "gsd,gsm;audio/x-gsm" "gsp;application/x-gsp" "gss;application/x-gss" "gtar;application/x-gtar" "gz,gzip;application/x-gzip" "hdf;application/x-hdf" "help,hlp;application/x-helpfile" "hgl;application/vnd.hp-hpgl" "hlb;text/x-script" "pg,hpgl:application/vnd.hp-hpgl" "hqx;application/binhex" "hta;application/hta" "htc;text/x-component" "htt;text/webviewhtml" "ice;x-conference/x-cooltalk" "ico;image/x-icon" "ief,iefs;image/ief" "iges,igs;application/iges" "ima;application/x-ima" "imap;application/x-httpd-imap" "inf;application/inf" "ins;application/x-internett-signup" "ip;application/x-ip2" "isu;video/x-isvideo" "it;audio/it" "iv;application/x-inventor" "ivr;i-world/i-vrml" "ivy;application/x-livescreen" "jam;audio/x-jam" "jcm;application/x-java-commerce" "jfif,jfif-tbnl,jpe,jpeg,jpg;image/jpeg" "jps;image/x-jps" "js;application/x-javascript" "jut;image/jutvision" "kar,midi,mid,rmi;audio/midi" \
+"ksh;text/x-script.ksh" "la,lma;audio/nspaudio" "lam;audio/x-liveaudio" "latex,ltx;application/x-latex" "lha;application/lha" "lsp;text/x-script.lisp" "lsx;text/x-la-asf" "lzx;application/lzx" "m3u;audio/x-mpequrl" "man;application/x-troff-man" "map;application/x-navimap" "mbd;application/mbedlet" "mc$;application/x-magic-cap-package-1.0" "mcd;application/mcad" "mcf;image/vasa" "mcf;text/mcf" "mcp;application/netmc" "me;application/x-troff-me" "mif;application/x-frame" "mht,mhtml,mime;message/rfc822" "mjf;audio/x-vnd.audioexplosion.mjuicemediafile" "mjpg;video/x-motion-jpeg" "mm,mme;application/base64" "mod;audio/mod" "moov,mov,qt,qtc;video/quicktime" "movie;video/x-sgi-movie" "mpc;application/x-project" "mpg,mpeg,mpe,m1v,m2v;video/mpeg" "mpga,mp2,mp3,mpa,m2a;audio/mpeg" "mpp;application/vnd.ms-project" "mpt,mpv,mpx;application/x-project" "mrc;application/marc" "ms;application/x-troff-ms" "mv;video/x-sgi-movie" "mzz;application/x-vnd.audioexplosion.mzz" "nap,naplps;image/naplps" "nc;application/x-netcdf" "ncm;application/vnd.nokia.configuration-message" "nif,niff;image/x-niff" "nix;application/x-mix-transfer" "nsc;application/x-conference" "nvd;application/x-navidoc" "oda;application/oda" "omc;application/x-omc" "omcd;application/x-omcdatamaker" "omcr;application/x-omcregerator" "p10;application/pkcs10" "p12;application/pkcs-12" "p7a;application/x-pkcs7-signature" "p7c,p7m;application/pkcs7-mime" "p7r;application/x-pkcs7-certreqresp" "p7s;application/pkcs7-signature" "part,prt;application/pro_eng" "pbm;image/x-portable-bitmap" "pcl;application/x-pcl" "pct;image/x-pict" "pcx;image/x-pcx" "pdb,xyz;chemical/x-pdb" "pdf;application/pdf" "pgm;image/x-portable-graymap" "pic,pict;image/pict" "pkg;application/x-newton-compatible-pkg" "pko;application/vnd.ms-pki.pko" "pl;text/x-script.perl" "plx;application/x-pixclscript" "pm;image/x-xpixmap" "pm;text/x-script.perl-module" "pm4,pm5;application/x-pagemaker" "png,x-png;image/png" "pnm;image/x-portable-anymap" "pot,ppa,pps,ppt,ppz,pwz;application/mspowerpoint" "pov;model/x-pov" "ppm;image/x-portable-pixmap" "pre;application/x-freelance" "pvu;paleovu/x-pv" "py;text/x-script.phyton" "pyc;applicaiton/x-bytecode.python" "qcp;audio/vnd.qcelp" "qif,qti,qtiv;image/x-quicktime" "ras,rast;image/cmu-raster" "rexx;text/x-script.rexx" "rf;image/vnd.rn-realflash" "rgb;image/x-rgb" "ra,rm,ram,rmm,rmp;audio/x-pn-realaudio" "rng;application/ringing-tones" "rnx;application/vnd.rn-realplayer" "roff,t,tr;application/x-troff" "rp;image/vnd.rn-realpix" "rpm;audio/x-pn-realaudio-plugin" "rt,rtf,rtx;text/richtext" "rv;video/vnd.rn-realvideo" "s3m;audio/s3m" "sbk;application/x-tbook" "scm;video/x-scm" "sdp;application/sdp" "sdr;application/sounder" "sea;application/sea" "set;application/set" "sgm,sgml;text/sgml" "sh;text/x-script.sh" "sid;audio/x-psid" "sit;application/x-stuffit" "skd,skm,skp,skt;application/x-koan" "sl;application/x-seelogo" "smi,smil;application/smil" "sol;application/solids" "spc,talk;text/x-speech" \
+"spl;application/futuresplash" "spr,sprite;application/x-sprite" "src,wsrc;application/x-wais-source" "ssi;text/x-server-parsed-html" "ssm;application/streamingmedia" "sst;application/vnd.ms-pki.certstore" "step,stp;application/step" "stl;application/sla" "sv4cpio;application/x-sv4cpio" "sv4crc;application/x-sv4crc" "svf;image/x-dwg" "svr,wrl;application/x-world" "swf;application/x-shockwave-flash" "tar;application/x-tar" "tbk;application/toolbook" "tcl;text/x-script.tcl" "tcsh;text/x-script.tcsh" "tex;application/x-tex" "texi,texinfo;application/x-texinfo" "tgz;application/gnutar" "tif,tiff;image/tiff" "tsi;audio/tsp-audio" "tsp;audio/tsplayer" "tsv;text/tab-separated-values" "uil;text/x-uil" "uni,unis,uri,uris;text/uri-list" "unv;application/i-deas" "ustar;application/x-ustar" "uu,uue;text/x-uuencode" "vcd;application/x-cdlink" "vcs;text/x-vcalendar" "vda;application/vda" "vdo;video/vdo" "vew;application/groupwise" "viv,vivo;video/vivo" "vmd;application/vocaltec-media-desc" "vmf;application/vocaltec-media-file" "voc;audio/x-voc" "vos;video/vosaic" "vox;audio/voxware" "vqe,vql;audio/x-twinvq-plugin" "vqf;audio/x-twinvq" "vrml,wrz;model/vrml" "vrt;x-world/x-vrt" "vsd,vst,vsw;application/x-visio" "w60;application/wordperfect6.0" "w61;application/wordperfect6.1" "wav;audio/wav" "wb1;application/x-qpro" "wbmp;mage/vnd.wap.wbmp" "web;application/vnd.xara" "wk1;application/x-123" "wmf;windows/metafile" "wml;text/vnd.wap.wml" "wmlc;application/vnd.wap.wmlc" "wmls;ext/vnd.wap.wmlscript" "wmlsc;application/vnd.wap.wmlscriptc" "wp,wp5,wp6,wpd;application/wordperfect" "wq1;application/x-lotus" "wri;application/mswrite" "wsc;text/scriplet" "wtk;application/x-wintalk" "xbm;image/xbm" "xdr;video/x-amt-demorun" "xgz;xgl/drawing" "xif;image/vnd.xiff" "xl,xla,xlb,xlc,xld,xlk,xll,xlm,xls,xlt,xlv,xlw,;application/excel" "xm;audio/xm" "xml;application/xml" "xmz;xgl/movie" "xpix;application/x-vnd.ls-xpix" "xpm;image/xpm" "xsr;video/x-amt-showrun" "xwd;image/x-xwd" "z;application/x-compress" "zip;application/zip" "zsh;text/x-script.zsh"
+    do
+        [[ ${token} =~ ^(.*)\;(.*)$ ]] && {
+            file_suffixes=${BASH_REMATCH[1]}
+            mime_type=${BASH_REMATCH[2]}
+        }
+        oIFS=${IFS}
+        IFS=','
+        for suffix in ${file_suffixes}
+        do
+            [[ ${suffix} = ${Suffix} ]] && {
+                IFS=${oIFS}
+                printf "${mime_type}"
+                return 0
+            }
+        done
+        IFS=${oIFS}
+    done
+    return 1
+}
+#-----------------------------------------------------------------------------
+test_func_wi_return_MTA () {
+    # Args: [ func_name func_args expected ] in order
+
+    local arg2="${2}" arg3="${3}"
+    [[ ${2} = 'null' ]] && arg2=""
+    [[ ${3} = 'null' ]] && arg3=""
+
+    echo "TESTING ${1} '${arg2}'"
+
+    if [[ ${arg2} = 'none' ]]; then
+        expected=${arg3}
+        eval '${1}' > /dev/null 2>&1
+        func_return=${?}
+    elif [[ ${arg3} = 'none' && "${4}" ]]; then
+        expected=${4}
+        eval '${1} ${arg2}' > /dev/null 2>&1
+        func_return=${?}
+    else
+        func_return=$(${1} ${arg2})
+        expected="${arg3}"
+    fi
+
+    printf "Expected return value -> ${expected}\n"
+    printf "Function returns      -> ${func_return}"
+    if [[ "${expected}" = "${func_return}" ]]; then
+        printf "...OK\n\n"
+        return 0
+    else
+        printf "...NO!\nTest failed.\n\n"
+        return 1
+    fi
+}
+#-----------------------------------------------------------------------------
+log_relay_errs_MTA () {
+    # Args: [log_file]
+
+    exec 2> ${1}
+    return ${?}
+}
+#-----------------------------------------------------------------------------
+replace_header_MTA () {
+    # Args: [header replacement]
+    # Optional [file]
+    #
+    local Line In=0 replacement=${2} Body=
+
+    [[ "${3}" ]] && {
+        if [[ -r "${3}" ]]; then
+            get_open_fd_MTA
+            In=${OPEN_FD}
+            eval "exec ${In}< \"\${3}\""
+        else
+            list_error_MTA "Bad file argument to ${FUNCNAME}."
+            return 1
+        fi
+    }
+
+    [[ ${2} = 'none' ]] && replacement=
+
+    oIFS=${IFS}
+    IFS=
+    while read -r -t 10 Line
+    do
+        if [[ ${Body} != 'true' ]]; then
+            if [[ ${Line} =~ ^(${1}[\ ])[^\ ]*[\ ](.*)$ ]]; then
+                echo "${BASH_REMATCH[1]%%\ } ${replacement} ${BASH_REMATCH[2]}"
+            elif [[ ${Line} =~ ^(${1}[:]) ]]; then
+                echo "${BASH_REMATCH[1]%%\ } ${replacement}"
+            elif [[ ${Line} =~ ^$ ]]; then
+                Body=true
+                echo
+            else
+                echo ${Line}
+            fi
+        else
+            echo ${Line}
+        fi
+    done <&${In}
+    [[ ${?} -gt 0 ]] && list_error_MTA "Bad input argument to ${FUNCNAME}."
+    IFS=${oIFS}
+    eval "exec ${In}<&-"
+    return 0
+}
+#-----------------------------------------------------------------------------

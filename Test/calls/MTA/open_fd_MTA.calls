@@ -1,0 +1,8 @@
+# 2
+test_func_wi_return_MTA open_fd_MTA "/dev/tcp/${1}/25 17" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+close_fd_MTA 17
+test_func_wi_return_MTA open_fd_MTA "/dev/tcp/${1}/25" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+close_fd_MTA ${FD}
+exit $PASSED

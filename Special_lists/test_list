@@ -1,0 +1,8 @@
+#                        Example list file testlist.                        #
+#############################################################################
+# This file should contain the email addresses of list members.             #
+# Brackets <> are REQUIRED if you want to include Names before addresses    #
+#############################################################################
+mabel@label.com
+johndoe@somewhere.org
+Felix Unger <feel4u@nodes.net> # <- Brackets required

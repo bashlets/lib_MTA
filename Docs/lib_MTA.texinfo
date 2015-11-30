@@ -1,0 +1,2309 @@
+\input texinfo @c -*-texinfo-*
+@c %**start of header
+@setfilename Lib_MTA.info
+@settitle Using Lib_MTA
+@exampleindent 2
+@syncodeindex vr fn
+@setcontentsaftertitlepage 
+@c %**end of header
+
+@dircategory Software libraries
+@direntry
+* Lib_MTA: (lib_MTA). Library of BASH Script Functions for Electronic Mail.
+@end direntry
+@ifinfo
+Copyright @copyright{} 2009 Tom Andrews
+@end ifinfo
+
+@titlepage
+@sp 10
+@center @titlefont{Using Lib_MTA}
+@sp 2
+@center @subtitlefont{A Library of BASH Shell Script Functions for Electronic Mail}
+@page
+@vskip 0pt plus 1filll
+Copyright @copyright{} 2009 Tom Andrews
+@end titlepage
+@c ###########################################################################
+@c ###########################################################################
+@c ###########################################################################
+@node Top
+@top Lib_MTA BASH Function Library
+
+@noindent
+This manual documents version &VERS& of lib_MTA, a BASH function library
+for electronic email.
+@sp 1
+   Copyright (C)  2009  by Tom Andrews.
+@sp 1
+@noindent
+Permission is granted to copy, distribute and/or modify this document
+under the terms of the GNU Free Documentation License, Version 1.3 or
+any later version published by the Free Software Foundation; with no
+Invariant Sections, no Front-Cover Texts, and no Back-Cover Texts.  A
+copy of the license is included as Appendix B.
+
+@menu
+* Introduction:: Purpose and Scope of the Library
+* Functions:: Definitions and Usage
+* Global Variables:: Definitions and Usage
+* Examples:: Shell Scripts
+
+Appendices
+
+* Appendix A:: ESMTP Services
+* Appendix B:: GNU Free Documentation License, Version 1.3
+
+Index
+
+* Index:: Functions and Global Variables
+@end menu
+@sp 3
+@c ###########################################################################
+@c ###########################################################################
+@node Introduction
+@chapter Purpose and Scope of the Lib_MTA Library
+@noindent
+The author of this library spent many years as a Unix system administrator at
+a large university, and often wrote shell scripts which either sent email or
+monitored email services in some way.  Dealing with electronic mail in scripts
+can be a daunting task for many administrators because of the underlying
+complexity to a seemingly simple service.
+@sp 1
+@noindent
+The primary purpose of the Lib_MTA library is to provide a convenient, easy to
+use BASH script interface to electronic mail services provided by Mail Transfer
+Agents (also called Mail Transport Agents and Message Transfer Agents), 
+which mitigates many of the complex transactions required.  A total of 58
+functions for dealing with email are contained in this version of the library.
+In order to use the library functions in BASH scripts, the library should be
+included with a @command{source} command at the beginning of the script, followed
+immediately by mandatory and optional library global variable assignment
+declarations.  @xref{Examples} for examples of the proper way to use the library
+in scripts. 
+@sp 1
+@noindent
+The library focuses on two areas, relaying email and filtering outbound email
+to mailing lists.  The mail relay functions provide the capability to write
+BASH scripts to relay email through both local and remote Mail Transfer Agents, 
+both with and without TLS and authentication.  The library provides three
+stock relay functions, relay_25_MTA, for standard port 25 relaying of email,
+relay_465_MTA for authenticated TLS encrypted relaying of email on port 465,
+and relay_587_MTA, for STARTTLS with authentication relaying of email on port
+587.
+@sp 1
+@noindent
+The list filtering functions are designed for use on large mailing lists,
+which many corporations, universities and other large organizations maintain
+to communicate with target groups of benefactors, employees, students,
+customers, etc.  The filter functions provide capability for the following:@*
+@sp 1
+@example
+Optional From: line rewrite (SPOOF)@*
+Optional Reply-To: line rewrite (SPOOF_REPLY)@*
+Optional sender authorization check (AUTH_REQUIRED)@*
+Optional alternate reply address (ALT_ADDRESS)@*
+Optional attachment reject (NO_ATTACHMENTS)@*
+Optional vacation reply reject (NO_VACATION)@*
+Optional non-local posting rejection (MUST_BE_LOCAL)@*
+Optional footer (FOOTER)@*
+Optional Mailer error posting prevention (NO_MAIL_ERR)@*
+Optional Spam tag posting prevention (NO_SPAM)@*
+@end example
+@sp 1
+@noindent
+A standard filtering script, called special_filter.sh is provided with the
+library. You are free to use this script, as is, customize it for your needs,
+or write a new filtering script using the library functions.
+@c ###########################################################################
+@c ###########################################################################
+@node Functions
+@chapter Function Definitions and Usage
+@noindent
+Individual library function definitons and usage explanations are
+contained in this section.  Where a function should be used in an
+assignment statement, the proper usage is illustrated.  Optional
+arguments to functions are denoted by enclosure in square brackets.
+Global variable references are given in all caps as in @var{VARIABLE}.
+@xref{Global Variables} for detailed definitions of the global
+variables referenced in the functions descriptions.
+@menu
+Functions by Category
+
+* Mail Relay::
+* Mail Composition::
+* Authentication::
+* Mailing Lists::
+* Utility::
+
+@end menu
+@c ###########################################################################
+@node Mail Relay
+@section Electronic Mail Relay Functions
+@sp 1
+The electronic mail relay functions are designed for use in BASH scripts
+to relay email to both local and remote MTA's using the SMTP protocol.
+The stock relay functions @code{relay_25_MTA}, @code{relay_465_MTA}, or
+@code{relay_587_MTA}, can be used as is, or custom code for relaying can be
+written using the component functions.  @xref{Custom Relay Function Example}
+for an example of a custom written relaying function.
+@sp 1
+@noindent
+The basic architecture for handling I/O in the library functions is the
+use of a BASH special network device file for communication to/from an
+MTA on port 25, and the use of a named pipe and regular temporary file
+for handling MTA input and output via openssl on ports 465 and 587.  The
+custom relay function example uses two named pipes on ports 465 and 587,
+instead of a named pipe for input and a temporary file for output.  The
+named pipe and regular temporary file arrangement used in the library
+allows for finer control of output from the MTA because the sync command
+can be used to flush output, and time-outs can be managed in while loops,
+rather than with the time-out option of the read built-in.  You are free
+to use either arrangement in any custom functions you write, since the
+library supports both styles for managing I/O from the MTA via openssl.
+You can also replace openssl with the gnutls-client program if you prefer.
+@sp 2
+@c --------------------------------------------------------------------------
+@defun dump_MTA file_descriptor [time_out] [verbose]
+@sp 1
+Waits a default 40 seconds for content to appear in a named pipe pointed to
+by '@i{file_descriptor}', and dumps the full contents to the user's tty
+if @var{VERBOSE} is set to true.  Each line of output is prefaced with
+<-S to to mark it as output from the MTA server.   Optional argument
+[@i{time_out}] can be used to change the default wait period and optional
+argument [@i{verbose}] can be used to override the global variable
+@var{VERBOSE}.  This function should be used for dumping TLS negotiation and
+verification output from a named pipe file descriptor, before any actual mail
+transfer commands.  A value of zero is returned upon successful completion
+and a value of 1 is returned if an error condition occurs or the function
+times out.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun dump_tmp_MTA temp_file [time_out] [verbose]
+@sp 1
+Waits @var{TIME_OUT} seconds for content from the MTA to appear in file
+'@i{temp_file}', and performs a full dump of the content to the user's tty if
+@var{VERBOSE} is set to true.  Each line of output is prefaced with <-S to
+to mark it as output from the MTA server.  The function take up to two
+optional arguments which replace the values provided by the internal global
+variables @var{TIME_OUT} and @var{VERBOSE}.  Like @code{dump_MTA}, this
+function should be used for dumping TLS negotiation information, before
+actual mail transfer commands, but when output from openssl is being written
+to a temporary file rather than a named pipe .  A value of zero is returned
+upon successful completion and a value of 1 is returned if an error condition
+occurs.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun ehlo_MTA client_host MTA_server MTA_port
+@sp 1
+Connects to the Mail Transfer Agent specified by '@i{MTA_server}', using the
+port given by '@i{MTA_port}', and issues an ESMTP @command{ehlo} command
+using the client hostname given as '@i{client_host}'. The network connection
+is opened for reading and writing on file descriptor @var{FD} (see
+@code{open_fd_MTA}, below).  Both sides of the transaction are dumped to
+standard out.  Input from the client is prefaced with C-> and output from
+the server is prefaced with <-S.  This function is intended to be used as a
+diagnostic tool for determining that '@i{MTA_server}' is accepting connections
+on a given port.  It should not be used in a mail relay conversation where
+additional ESMTP commands are required, because a @command{quit} command is
+issued immediately after the @command{ehlo} command to end the session.  A
+value of zero is returned upon successful completion and a value of 1 is
+returned if an error condition is detected.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_tmp_service_MTA service temp_file [time_out]
+@sp 1
+Usage:@ @ @code{@i{service_line}=$(get_tmp_service_MTA @i{service temp_file [time_out]})}
+@sp 1
+Waits global variable @var{TIME_OUT} seconds for the MTA response from a client
+@command{ehlo} command to appear in file '@i{temp_file}', and performs a
+selective dump of the output to the user's tty if @var{VERBOSE} is set
+to true.  Each line of output is prefaced with <-S to mark it as output
+from the MTA server.  Each line is examined for a match to the '@i{service}'
+argument, and if a match is found, the entire line is echoed to a variable
+assignment.  Optional argument [@i{time_out}] replaces the value
+provided by the internal global variable @var{TIME_OUT}.  A value of zero
+is returned upon successful completion and a value of 1 is returned if an
+error condition occurs.  Correct usage is shown above.  For output that is
+being written to a named pipe, function @code{ get_service_MTA} provides
+the same functionality (see get_service_MTA, described below).
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_service_MTA service file_descriptor [time_out]
+@sp 1
+Usage:@ @ @code{@i{service_line}=$(get_service_MTA @i{service file_descriptor [time_out]})}
+@sp 1
+Waits a default of 40 seconds for the initial output from the server to an ESMTP
+@command{ehlo} command to appear in a named pipe pointed to by 
+'@i{file_descriptor}'. If the global variable @var{VERBOSE} is set to true, the
+function prints each line of server output to the user's tty, prefaced with <-S.
+Each line is examined for a match to the '@i{service}' argument, and if a match
+is found, the entire line is echoed to a variable assignment.  The default 40
+second wait period can be adjusted with optional argument [@i{time_out}].  The
+function returns 0 upon successful completion and 1 if an error condition or
+time-out occurs.  Correct usage is shown above.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun print_client_MTA ESMTP_cmd
+@sp 1
+Formats input from the client given in the argument '@i{ESMTP_cmd}', by
+prefacing each line with C->. The function then calls @code{printv_tty_MTA}
+to print the client input to the user's tty.  The exit value of the
+@code{printv_tty_MTA} function is returned.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun print_server_MTA ESMTP_cmd_response
+@sp 1
+Formats output from the server given in the argument '@i{ESMTP_cmd_response}',
+by prefacing each line with <-S. The function then calls @code{printv_tty_MTA}
+to print the server output to the user's tty.  The exit value of the
+@code{printv_tty_MTA} function is returned.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun query_MTA client_host MTA_server MTA_port service [time_out]
+@sp 1
+Usage:@ @ @code{@i{serv}=$(query_MTA @i{client_host MTA_server MTA_port service})}
+@sp 1
+Queries the Mail Transfer Agent specified in '@i{MTA_server}' on
+'@i{MTA_port}', using the @command{ehlo} '@i{client_host}' command, and
+determines if the service given in argument '@i{service}' is available.
+The function waits @var{TIME_OUT} seconds for a response from the MTA
+server.  If optional argument [@i{time_out}] is given, it's value replaces
+that of global variable @var{TIME_OUT}.  The function echoes "true" if the
+service is available and returns 0.  A value of 1 is returned if the service
+is not listed as available by the MTA, or if an error condition is encountered.
+This function is intended to be used in a BASH variable assignment,
+as shown above.  The function can be used to determine if services such
+as 'PIPELINING' and 'STARTTLS' are available on an MTA server before
+attempting to relay an email message.
+@sp 1
+@xref{Appendix A} for a list of RFC compliant '@i{services}', current as of April,
+2009. 
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun read_MTA status_code file_descriptor [time_out] 
+@sp 1
+Reads the last MTA response matching '@i{status_code}' from file descriptor
+'@i{file_descriptor}'.  The function waits global variable @var{TIME_OUT}
+seconds for a reponse from the server or the number of seconds given in
+optional argument [@i{time_out}].  If global variable @var{VERBOSE} is set,
+two dots are printed to the user's tty for each second the function waits
+for a server response and a matching server response is printed when it is
+received.  The normal use of this function should be to monitor and confirm
+reponses from the MTA to ESMTP commands given by the client host when server
+output is being directed to a named pipe or channeled through a /dev/tcp
+special file.  The @code{wait_for_MTA} function, described below, should be
+used for the same purpose when server output is being directed to a temporary
+file.  A value of 0 is returned if a match to '@i{status_code}' is found and
+value of 1 if a match is not made, the function times out, or an error condition
+is encountered.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun relay_25_MTA client_host MTA_server sender recipients mail_msg
+@sp 1
+Relays outbound email through '@i{MTA_server}', using an unencrypted
+connection on standard smtp port 25. The function sends the following
+sequence of commands and waits for the appropriate response code using the
+@code{send_MTA} and @code{read_MTA} functions described later in this section:
+@sp 1
+@noindent
+@b{ehlo} @var{client_host}@*
+@b{mail from:} @var{<sender>} (bracketed)@*
+@b{rcpt to:} @var{<recipients>}  (each bracketed and comma separated)@*
+@b{data}@*
+@var{mail_msg}@*
+@b{.}@*
+@b{quit}@*
+@sp 1
+The network connection is opened read/write on file descriptor @var{FD}.  Times
+out after global variable @var{TIME_OUT} interval, if a response match is
+not made.  Errors and timeouts trigger an exit 1, and server response error
+codes, if any, are printed to standard out.  The function returns 0 upon
+successful completion.
+@sp 1
+@noindent
+The proper format for the '@i{recipients}' is:
+@sp 1
+@code{<name@@rcpt.addr.1>,<name@@rcpt.addr.2>,<name@@rcpt.addr.3> @enddots{}}
+@sp 1
+The @code{strip_rcpts_MTA} function, described below, should be used to
+insure proper format.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun relay_465_MTA client_host MTA_server sender recipients mail_msg
+@sp 1
+Relays outbound email through '@i{MTA_server}', using a TLS encrypted
+connection on port 465.  The function uses openssl s_client to establish
+the connection and negotiate TLS.  Once the socket is encrypted, the
+@code{relay_465_MTA} function takes over I/O, using the @code{send_MTA} and
+@code{wait_for_MTA} functions described later in this section.  The general
+sequence of steps is as follows:
+@sp 1
+@noindent
+openssl->(TLS negotiation)@*
+@b{relay_MTA_465}->@command{ehlo} @var{client_host}@*
+@b{relay_MTA_465}->@command{auth plain | login} (depends on what the MTA supports)@*
+@b{relay_MTA_465}->@command{[authentication credentials in base 64]}@*
+@b{relay_MTA_465}->@command{mail from:} @var{<sender>} (bracketed)@*
+@b{relay_MTA_465}->@command{rcpt to:} @var{<recipients>} (ea bracketed, comma separated)@*
+@b{relay_MTA_465}->@command{data}@*
+@b{relay_MTA_465}->@var{mail_msg}@*
+@b{relay_MTA_465}->@command{.}@*
+@b{relay_MTA_465}->@command{quit}@*
+@sp 1
+@code{relay_465_MTA} uses a named pipe opened read/write on file descriptor
+@var{FD} to provide input, and re-directs stdout from s_client to a temporary
+file for real time examination of output from '@i{MTA_server}'.  Times out
+after global variable @var{TIME_OUT} interval, if a response match is not
+made.  Errors and time outs trigger an exit 1, and the server response error
+code, if any, is printed to standard out.  The function returns 0 upon
+successful completion.
+
+If global variable @var{SECRETS} is set, authentication credentials are read
+from file, otherwise they are prompted for and converted to the proper base
+64 fomat using internal library functions (@xref{Authentication}).  The
+function supports PLAIN and LOGIN authentication.  @strong{Caution:} For
+security reasons, it is not advisable to use authentication from file on
+multi-user computers.
+@sp 1
+@noindent
+The proper format for the @var{recipients} is:
+@sp 1
+@code{<name@@rcpt.addr.1>,<name@@rcpt.addr.2>,<name@@rcpt.addr.3> @enddots{}}
+@sp 1
+The @code{strip_recipients_MTA} function, described below, should be used to
+insure proper format.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun relay_587_MTA client_host MTA_server sender recipients mail_msg
+@sp 1
+Relays email through '@i{MTA_server}', using a TLS encrypted connection on port
+587.  The only difference between this function and the @code{relay_465_MTA}
+ function, other than the difference in port, is the role played by openssl.
+This function uses openssl s_client to establish the connection, issue a ehlo
+command, issue a starttls command, and negotiate TLS.  Once the socket is
+encrypted, @code{relay_587_MTA} takes over I/O in an identical manner to the
+@code{relay_465_MTA} function.
+The general sequence of steps is as follows:
+@sp 1
+@noindent
+openssl->@command{ehlo} @var{client_host}@*
+openssl->@command{starttls}@*
+openssl->(TLS negotiation)@*
+@b{relay_MTA_587}->@command{ehlo} @var{client_host}@*
+@b{relay_MTA_587}->@command{auth plain | login} (depends on what the MTA supports)@*
+@b{relay_MTA_587}->@command{[authentication credentials in base 64]}@*
+@b{relay_MTA_587}->@command{mail from:} @var{<sender>} (bracketed)@*
+@b{relay_MTA_587}->@command{rcpt to:} @var{<recipients>} (ea bracketed, comma separated)@*
+@b{relay_MTA_587}->@command{data}@*
+@b{relay_MTA_587}->@var{mail_msg}@*
+@b{relay_MTA_587}->@command{.}@*
+@b{relay_MTA_587}->@command{quit}@*
+@sp 1
+
+See @code{relay_465_MTA}, above, for a further description of function
+mechanics and behavior with global variables.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun send_MTA ESMTP_cmd file_descriptor
+@sp 1
+Sends command '@i{ESMTP_cmd}' to file descriptor '@i{file_descriptor}',
+and to the @code{print_client_MTA} function.  A value of 0 is returned
+upon successful relay of the command to the file descriptor, and the
+non-zero error code of printf upon failure.  This function can be used on all
+three standard relay ports 25, 465, and 587, for sending commands to an MTA.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun strip_rcpts_MTA recipients
+@sp 1
+Strips extraneous text which is not part of the actual email address from
+a space separated list of addresses, encloses each address in angle
+brackets if not already bracketed, and inserts a comma separator between
+addresses.  The function returns 0 upon successful completion, or 1 if an
+error condition is detected.  This function should be used to pre-format
+the addresses given to the three relay functions by the '@i{recipients}'
+argument.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun wait_for_MTA status_code[,word] temp_file [time_out] 
+@sp 1
+Continually tests the last line of file @file{temp_file} until it either
+finds a line beginning with '@i{status_code}', a line beginning with
+[@i{word}], or times out, as determined by the global variable
+@var{TIME_OUT}.  The [@i{word}] portion of '@i{status_code}' is optional,
+and only needed for the final acknowledgement from the MTA after a
+@command{quit} command, if the MTA's last line does not contain a 221
+response.  If both '@i{status code}' and '@i{word}' are given, they must
+be separated by a comma and no spaces so that they remain as one argument
+to the function.  If the line is found, it is sent to print_server_MTA and
+the function returns 0.  If the function times out without a match, or if an
+error condition occurs, a value of 1 is returned.  The function is designed
+to mimic Expect-like behavior in BASH (i.e. expect a certain response and
+wait for it to occur before proceeding).  The @var{TIME_OUT} value can be
+adjusted with optional argument [@i{time_out}].  This function should be used
+in lieu of read_MTA when output from the MTA is being written to a temporary
+file via openssl.
+@end defun
+@sp 2
+@c ###########################################################################
+@node Mail Composition
+@section Mail Composition Functions
+@sp 1
+Mail compostion functions are designed to be used interactively, in sequence,
+to compose an email message.  @xref{Examples}, email-gmail, for an example
+of the use of the input functions to compose an email message.
+@sp 2
+@c --------------------------------------------------------------------------
+@defun format_msg_MTA from recipients subject body
+@sp 1
+Usage:@ @ @code{@i{email}=$(format_msg_MTA @i{from recipients subject body})}
+@sp 1
+Compiles the '@i{sender}', '@i{recipients}', '@i{subject}', and '@i{body}' of the 
+message and attachments, if any, into a properly formated email document
+and echos the result to an assignment variable.  Attachment information is
+read from global array variables @var{FILE[index]}, @var{FILE_NAME[index]}, and
+@var{MIME_TYPE[index]}.  Attachments are base 64 encoded before inclusion in the
+email message.  Returns 0 upon successful completion, and 1 if an error
+condition is detected.  Proper usage is illustrated above.  The
+@code{format_msg_MTA} function can supplied with input either from the
+input functions or from static information for use in a cron script 
+(@xref{Cron Script Example}). 
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_mime_type_MTA attachment_file
+@sp 1
+Usage:@ @ @code{@i{MIME_TYPE[index]}=$(get_mime_type_MTA @i{attachment_file})}
+@sp 1
+Searches a database within the function for the file extension of
+'@i{attachment_file}' and echos the mime type associated with the
+extension to an assignment variable.  Returns 0 if the extension is
+found and 1 if the extension is not found.  The database contains
+approximately 450 file extensions.
+
+@end defun
+@c --------------------------------------------------------------------------
+@defun input_attachments_MTA
+@sp 1
+This function should be invoked after a return value of 123 from the
+@code{input_msg_MTA} function, described below.  It prompts the user for
+the names of attachment files, one at at time.
+@sp 1
+Full path of an attachment file (q to quit):
+@sp 1
+Input is checked and if the file is not readable, doesn't exist, or is
+empty, the user is prompted to try again.  Global array variables FILE[index],
+FILE_NAME[index], and MIME_TYPE[index] hold the full path, basename and mime type,
+respectively, for each valid file entered.  The mime type is obtained by
+calling function @code{get_mime_type_MTA} described above.  Returns 0 upon complete
+success and 1 if the @code{get_mime_type_MTA} function fails for any of the
+attachments.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun input_sender_MTA
+@sp 1
+Usage:@ @ @code{@i{sender}=$(input_sender_MTA)}
+@sp 1
+Prompts the user for From: and echoes the address entered to an assignment
+variable after stripping everything but the core address, removing any
+internal commas, and properly bracketing the result.  Returns 0 upon success
+and the error code of the @command{read} command upon failure.  Correct usage
+is shown above.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun input_rcpts_MTA
+@sp 1
+Usage:@ @ @code{@i{rcpts}=$(input_rcpts_MTA)}
+@sp 1
+Prompts the user for To: and echoes the address(es) entered after formatting,
+to an assignment variable.  Formatting consist of stripping commas from
+within core addresses, bracketing core addresses, and comma separating each
+complete address, which may include leading informational text (i.e. the name
+of a mailing list or user).  Output is suitable for includion in the To:
+line of an email message, but not in the ESMTP rcpts to: command.  Returns 0
+upon success, and the error code of the @command{read} command for read
+failure.  Correct usage is shown above.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun input_subject_MTA
+@sp 1
+Usage:@ @ @code{@i{subject}=$(input_subject_MTA)}
+@sp 1
+Prompts the user for Subject: and echoes the subject string entered to an
+assignment variable.  Returns 0 upon success and the error code
+of the @command{read} command upon failure.  Correct usage is shown above.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun input_msg_MTA
+@sp 1
+Usage:@ @ @code{@i{body}=$(input_msg_MTA)}
+@sp 1
+This function pre-supposes the use of @code{input_msg_help_MTA}, described
+below, beforehand.   Input is read from the keyboard and each line
+of the text entered is appended to a message string. When the user
+types 's' or 'a' on a line by itself, the complete message string is
+then echoed to a assignment variable.  Returns 0 upon success if the user
+enters 's' on a line by itself, and 123 if the user enters 'a' on a line
+by itself.  The @code{input_attachments_MTA} function should be used to
+obtain attachment information when the function returns 123.  If a read
+error is detected, the error code of the @command{read} command is returned.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun input_msg_help_MTA recipients subject
+@sp 1
+Prints a command summary for inputing and sending messages to the user's
+tty.
+@sp 1
+Command Summary:
+@sp 1
+Enter ->'s' on a line by itself to Send.@*
+Enter ->'a' to on a line by itself to Attach files first before sending.@*
+Enter ->'(Ctrl C)' at any time to abort message.@*
+@sp 1
+Returns the return value of the @code{printf_tty_MTA} function.
+@end defun
+@sp 2
+@c ###########################################################################
+@node Authentication
+@section Relay Authentication Functions
+@sp 1
+The relay authentication functions are for interactive authentication
+to an MTA before relaying email.  The alternative is passive authentication,
+which requires setting the SECRETS global variable and creating one or more
+secrets files containing authentication information.  Within the library,
+the relay authentication functions are used in the @code{relay_465_MTA} and
+@code{relay_587_MTA} functions.  @xref{Examples} for an example of use of the
+relay authentication functions.
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_password_MTA MTA_server
+@sp 1
+Usage:@ @ @code{@i{pass}=$(get_password_MTA @i{MTA_server})}
+@sp 1
+Launches a user interactive prompt asking the user for their password on
+the Mail Transfer Agent specified in '@i{MTA_server}'. This is necessary if
+authentication is required on the MTA in order to relay mail.  Stty echo
+is turned off.  Echoes the password entered to an assignment variable and
+returns 0 upon success or returns the non-zero error code of the read command
+upon failure.
+@sp 1
+@strong{Caution:} For security reasons, this function should never be called
+without an assignment.  Proper usage is illustrated above!
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_username_MTA MTA_server
+@sp 1
+Usage:@ @ @code{@i{user}=$(get_username_MTA @i{MTA_server})}
+@sp 1
+ 
+Launches a user interactive prompt asking the user for their username on
+the Mail Transfer Agent specified in '@i{MTA_server}'.  This is necessary if
+authentication is required on the MTA in order to relay mail.  Echoes the
+username entered to an assignment variable and returns 0 upon success and
+returns the non-zero error code of the read command upon failure.  This
+function is intended to be used in a BASH variable assignment, as shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun set_login_pass_64_MTA password
+@sp 1
+Usage:@ @ @code{@i{pass_64}=$(set_login_pass_64_MTA @i{password})}
+@sp 1
+Encodes '@i{password}' into base 64 and echoes the result to an assignment
+variable.  A zero value is returned upon success and a non-zero
+@command{base64} command error code is returned upon failure.  The
+same security concerns apply to this function that apply to the
+@code{get_password_MTA} function.
+@sp 1
+@strong{Caution:} This function should never be used outside of an assignment
+statement.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun set_login_user_64_MTA username
+@sp 1
+Usage:@ @ @code{@i{user_64}=$(set_login_user_64_MTA @i{username})}
+@sp 1
+Encodes '@i{username}' into base 64 and echoes the result to an assignment
+variable.  A zero value is returned upon success and a non-zero @command{base64}
+command error code is returned upon failure.  This function is designed to be
+used in an assignment statement, as shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun set_plain_auth_64_MTA username password
+@sp 1
+Usage:@ @ @code{@i{plain_64}=$(set_plain_auth_64_MTA @i{username password})}
+@sp 1
+Encodes the string:
+@sp 1
+@center '@i{username}'@b{\0}'@i{username}'@b{\0}'@i{password}'
+@sp 1
+into base 64 and echoes the result to an assignment variable.  Zero is
+returned upon success and the non-zero @command{base64} command error code
+is returned upon failure.
+@sp 1
+@strong{Caution:} Never use this function outside of an assignment statement.
+@end defun
+@sp 2
+@c ###########################################################################
+@node Mailing Lists
+@section Mailing List Filter Functions
+@sp 1
+The mailing list filter functions are designed for use in filtering outbound
+email messages from large mailing lists.  Proper use of the functions can
+be seen in the special_filter.sh script included with the library.
+@sp 2
+@c --------------------------------------------------------------------------
+@defun add_footer_MTA @file{msg_file} footer
+@sp 1
+Adds footer' @i{footer}' to an outbound email message contained in file
+@file{msg_file}.  The footer should be in the form of a @dfn{here document},
+as described in the BASH reference manual.  If the message content is of
+type: multipart/alternative, and 'html' is an alternative, both plain text
+and html text message footers are generated and inserted.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun alternate_reply_MTA @file{msg_file} alt_email_addr
+@sp 1
+Sends an email message to the sender, returning their message in
+@file{msg_file} as a footer and informing them that email replies to
+this list are not allowed, but that they can reply to alternate email
+address '@i{alt_email_addr}'.  It then logs the error with
+@code{list_error_MTA}.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun chk_auth_MTA @file{msg_file} @file{auth_file}
+@sp 1
+Compares the From: in the message file @file{msg_file} with a one per line
+list of email addresses in an authorization file @file{auth_file}.  If a
+match is found, the function returns 0.  If a match is @b{not found}, the
+function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun chk_Received_MTA @file{msg_file} local_MTA
+@sp 1
+Checks the Received: headers in email message file @file{msg_file} for the
+Received: containing a "by" matching  '@i{local MTA}'.  It then checks the
+corresponding "from" for a local origin.  If the "from" is local, the function
+returns 0.  If the "from" is @b{not local}, the function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun chk_Subject_MTA @file{msg_file}
+@sp 1
+Checks the Subject: line of the email message in file @file{msg_file} for
+the case insensitive token "likely spam".  The function returns 0 if the
+token is not found.  If the token @b{is found}, the function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_date_MTA
+@sp 1
+Usage:@ @ @code{@i{Date}=$(get_date_MTA)}
+@sp 1
+Echoes the current date and time in a format suitable for log file entries to
+a variable assignment.  Proper usage is shown above.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_From_MTA @file{msg_file}
+@sp 1
+Usage:@ @ @code{@i{From}=$(get_From_MTA @file{msg_file})}
+@sp 1
+Finds the From: header in file @file{msg_file} and echoes the contained
+email address to a variable assignment.  The address is first stripped of all
+non-address, extraneous text and enclosing brackets <> and/or parentheses ().
+Proper usage is shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_Subject_MTA @file{msg_file}
+@sp 1
+Usage:@ @ @code{@i{Subject}=$(get_Subject_MTA @file{msg_file})}
+@sp 1
+Finds the Subject: header in file @file{msg_file} and echoes the result stripped
+of the Subject: part to a variable assignment.  Proper usage is shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_To_MTA @file{msg_file}
+@sp 1
+Usage:@ @ @code{@i{To}=$(get_To_MTA @file{msg_file})}
+@sp 1
+Finds the To: header in file @file{msg_file} and echoes the contained email
+address to a variable assignment.  The address is first stripped of
+all non-address, extraneous text and enclosing brackets <> and/or parentheses ().
+Proper usage is shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun kill_attachments_MTA @file{msg_file}
+@sp 1
+Searches the email message file @file{msg_file} for the tokens "multipart"
+and "Content-Disposition: attachment".  If these tokens are not both found,
+the function returns 0.  If both tokens are found, the function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun kill_mailer_errs_MTA @file{msg_file}
+@sp 1
+Searches the From: header of the email message in file @file{msg_file} for
+the following default tokens:@*
+@sp 1
+@noindent
+root daemon postmaster postfix sendmail qmail exim@*
+@sp 1
+@noindent
+or a custom set of tokens defined in the global variable
+@var{MAILER_ERR_TOKENS}.
+If none of these tokens are found, the function returns 0.  If any of these
+tokens are found, the function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun kill_vacation_MTA @file{msg_file}
+@sp 1
+Searches the Subject: header of the email message in file @file{msg_file} for
+the following default tokens:@*
+@sp 1
+@noindent
+"on vacation" autoreply auto-reply "auto reply" "out of office"@*
+"automated response" "away from my mail" "away from my email"@*
+@sp 1
+@noindent
+or a custom set of tokens defined in global variable @var{VACATION_TOKENS}.
+If none of these tokens are found, the function returns 0.  If any of these
+tokens are found, the function returns 1.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun list_error_MTA error_msg
+@sp 1
+Logs the error string '@i{error_msg}' to the log file named in global variable
+@var{LIST_ERROR_LOG}, if the log file exists and is writable.  Otherwise, the
+error string '@i{error_msg}' is echoed to standard error.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun log_transaction_MTA transaction
+@sp 1
+Logs the completed list email filtering transaction contained in string
+'@i{transaction}' to the file named in global variable @var{LIST_TRANS_LOG},
+if the log file exists and is writable.  Otherwise, the function calls
+@code{list_error_MTA} with a "Can't write to log file" error.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun replace_header_MTA header replacement [file]
+@sp 1
+Searches the headers of an email message and finds all occurrences of lines
+beginning with '@i{header}' and replaces the text following '@i{header}' with
+'@i{replacement}'.  If '@i{replacement}' is 'none', the function replaces
+the header content with nothing, that is, blanks the header content.
+If optional argument [@i{file}] is given, the email message is read from
+[@i{file}], otherwise, the email message is read from standard in.  The
+modified message is printed to standard out.  Returns 0 upon successful
+completion and 1 if an error condition is encountered.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun return_email_MTA @file{msg_file} reason
+@sp 1
+Sends a reply to the From: address contained in email message file @file{msg_file},
+returning the original message contained in @file{msg_file} as a footer.  The
+sender is informed of the reason for the returned message in string '@i{reason}'.
+@end defun
+@sp 2
+@c ###########################################################################
+@node Utility
+@section General Utility Functions
+@sp 1
+The general utility functions are not specific to any one area of library
+functionality.  Rather, they are used to perform generic tasks such as
+creating and deleting files, printing output to the user's tty, and testing.
+@sp 2
+@c --------------------------------------------------------------------------
+@defun arg_type_MTA argument
+@sp 1
+Usage:@ @ @code{@i{type}=$(arg_type_MTA @i{argument})}
+@sp 1
+Takes the argument given as '@i{argument}' and uses regular expression
+analysis to determine the type of the argument, based on the characters
+present.  The argument is classed as one of the following:
+@sp 2
+@multitable {printable} {number characters and the extra characters (.)(-)}
+@item blank      @tab no printable characters
+@item num        @tab number characters and the extra characters (.)(-)
+@item alpha      @tab lower and upper case alphabetic characters
+@item alphanum   @tab both num and alpha characters
+@item filepath   @tab alphanum and the extra characters (/)(.)(_)(-)
+@item printable  @tab All printable characters
+@end multitable
+@sp 2
+Once determined, the argument type is returned by echo to a BASH variable
+assignment as shown by the usage, above.  A value of 0 is returned by the
+function upon success, and a value of 1 upon error.  There should never
+be an error...
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun close_fd_MTA file_descriptor
+@sp 1
+Closes the file descriptor given in argument '@i{file descriptor}'. 
+A value of 0 is returned upon successful closure of the file descriptor,
+and a value of 1 is returned if the closure fails.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun create_pipe_MTA @file{pipe_file}
+@sp 1
+Usage:@ @ @code{@i{pipe}=$(create_pipe_MTA @file{pipe_file})}
+@sp 1
+Creates a named pipe with the file name and location given in the argument,
+@file{pipe_file}.  Echoes the value @file{pipe_file} and returns 0 if the pipe
+is successfully created.  Returns the non-zero error code of the @command{mkfifo}
+command upon failure.  The file permissions on the newly created, empty pipe are
+0600 (rw- --- ---).  This function is intended to be used in a BASH variable
+assignment, as shown. 
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun create_tmp_MTA @file{temp_file}
+@sp 1
+Usage:@ @ @code{@i{tmp}=$(create_tmp_MTA @file{temp_file})}
+@sp 1
+Creates an empty temporary file with the name and location given in
+argument  @file{temp_file} for holding output.  The file
+permissions on the temporary file are 0600 (rw- --- ---).  Echoes the value
+of @file{temp_file} and returns 0 upon success.  Returns the non-zero error
+code of the @command{cat} command upon failure. This function is intended to be
+used in a BASH variable assignment, as shown.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun relay_err_MTA error_string
+@sp 1
+Prints '@i{error_string}' to standard error.  Returns 0 upon success and
+the error code of the @command{printf} command upon failure.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun flip_flop_MTA flag
+@sp 1
+Usage:@ @ @code{@i{flag}=$(arg_type_MTA @i{flag})}
+@sp 1
+Alternates setting and unsetting '@i{flag}' with each call.  Used internally
+in the functions with time-outs to alternate the count on half-second sleep
+intervals and thus allows time-outs to be given in whole seconds.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun get_open_fd_MTA file
+@sp 1
+Examines the file descriptors associated with the user's tty using the
+@command{lsof} command and gets the first open file descriptor number
+in the range 3-9, but excluding 5.  The function then sets global variable
+@var{OPEN_FD} to the open file descriptor number.  Returns 0 upon success
+and 1 if an open file descriptor number could not be found.
+@sp 1
+@noindent
+@strong{Caution:} Beware of using xterms and rxvts when opening file
+descriptors in BASH, many flavors consume the first open file descriptor starting
+with 4.  Therefore, do not assume all the file descriptors between 3 and 9
+are actually available!  Also note that although file descriptor 5 is excluded
+from selection in this function, the statements made in the widely used
+Advanced BASH Shell Scripting Guide about file descriptor 5 are wrong.  The
+official BASH reference manual does NOT advise against using file descriptor
+5, but does advise against using file descriptors greater than 9.  There is far
+more danger in not checking the full range from 3-9 before attempting to open a
+file descriptor than in using file descriptor 5, per se.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun open_fd_MTA file [file_descriptor]
+@sp 1
+Opens a file descriptor read-write on file '@i{file}', using a file
+descriptor number supplied from @code{getopen_fd_MTA} described above.
+Provided an open number is found by @code{getopen_fd_MTA}, the number
+is assigned to global variable @var{FD}, and the function returns 0.
+If an open file descriptor number is not availabe per @code{getopen_fd_MTA},
+FD is not set, and the function returns a value of 1.  The optional argument
+[@i{file_descriptor}] may be given to force the function to @command{exec}
+an open using a specific file descriptor number.  @strong{Caution:} This
+is not advisable unless you know beforehand that the file descriptor
+number given is available.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun printf_tty_MTA string [terminal]
+@sp 1
+Prints '@i{string}' to the tty device file contained in the global variable
+@code{TTY}.  If optional argument [@i{teminal}] is given, it replaces the
+value of TTY.  If @var{TTY} is unset, the function prints to the device file
+returned by the @command{tty} command.  The @code{printf_tty_MTA} function is
+useful for printing output directly to the terminal, and thus not affecting
+values echoed to variable assignments on standard out.  Returns 0 upon success
+and the error code of the @command{printf} command upon failure.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun printv_tty_MTA string [terminal]
+@sp 1
+Like @code{printf_tty_MTA}, described above, but if global variable
+@code{VERBOSE} is not set to true, @code{printv_tty_MTA} does nothing.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun remove_file_MTA @file{file} [@file{file2}]. ...
+@sp 1
+Removes the file named in argument @file{file}.  It returns 0 upon
+successful removal and the non-zero exit code of the @command{rm} command
+upon failure.  A list of additional files to remove may optionally be given.
+Within the library this functions is used to remove temporary regular files and
+named pipe files created for use in handling I/O.
+@end defun
+@sp 2
+@c --------------------------------------------------------------------------
+@defun test_func_wi_return_MTA func_name func_args expected|none [return_val]
+@sp 1
+A testing function which takes as arguments, a function name '@i{func_name}',
+the function arguments '@i{func_args}', and the expected echoed return value
+of the function for the given '@i{func_args}'.  If expected is 'none', a
+fourth argument can be given as a number which is expected to match the
+return value held in '$?'.  The test function returns 0 if a match is made and
+1 otherwise.
+@end defun
+@sp 2
+@c ###########################################################################
+@c ###########################################################################
+@node Global Variables
+@chapter Global Variables Definitions and Usage
+@menu
+* General Purpose Variables::
+* List Variables::
+* Message Composition Variables::
+* Mail Relay Variables::
+@end menu
+@sp 2
+Global variables are used throughout the library to contain information which
+is either settable by the user, or could not be returned to the caller
+by a library function due to programming limitations.  Individual variables
+are described by category in the following sub-sections.
+@sp 2
+@c ###########################################################################
+@node General Purpose Variables
+@section General Purpose Global Variables
+@c --------------------------------------------------------------------------
+@defvar LIB_MTA
+@sp 1
+Contains the full path to the lib_MTA-&VERS&.sh library .  Setting this
+variable is mandatory for use of the lib_MTA library.  The suggested method
+of setting @code{LIB_MTA} is either in a BASH lib_MTA configuration
+file under /etc/profile.d or in a .bashrc file in the user's home directory.
+The file MTA.sh, suitable for setting LIB_MTA under /etc/profile.d, is
+furnished with the distribution.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar TIME_OUT
+@sp 1
+If set to a positive integer, the @code{TIME_OUT} variable determines the total
+time in one second intervals before an action is timed out.  Setting @code{TIME_OUT} to a negative interger or 0 disables time out functionality.
+If @code{TIME_OUT} is unset, a default of 30 is used in the library functions.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar TTY
+@sp 1
+If set to the user's tty, the @code{TTY} variable reduces the library function
+calls to command @command{tty} to a fraction of what they would be otherwise.
+This is a good thing and therefore, setting TTY is recommended.  The easy way
+to set @code{TTY} is:
+
+@code{TTY=$(@command{tty})}
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar VERBOSE
+@sp 1
+If set, The @code{VERBOSE} variable turns on informative output to standard out.
+The mail relay functions will print the complete client-server exchange.
+@end defvar
+@c ###########################################################################
+@node List Variables
+@section Special List Filter Global Variables
+@noindent
+The list global variables can be set in the file MASTER.cfg which comes with
+the lib_MTA distribution.  The mandatory variable values required for function
+use are so noted.
+@sp 2
+@c --------------------------------------------------------------------------
+@defvar AUTH_DIR
+@sp 1
+Contains the full path to the special list authorization files directory.
+The default is @file{/usr/local/special_lists/auth_files}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LIST_DIR
+@sp 1
+Contains the full path to the special list mailing list files directory.
+The default is @file{/usr/local/special_lists/list_files}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LIST_ERROR_LOG
+@sp 1
+Contains the full path to the error log file used by @code{list_error_MTA}.
+Setting @code{LIST_ERROR_LOG} is mandatory for use of @code{list_error_MTA}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LIST_TRANS_LOG
+@sp 1
+Contains the full path to the list transaction log file used by
+@code{log_transaction_MTA}.  Setting @var{LIST_TRANS_LOG} is
+mandatory for use of @code{log_transaction_MTA}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LOCAL_MTA
+@sp 1
+Contains the fully qualified name of the local Mail Transfer Agent.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LOGS_DIR
+@sp 1
+Contains the full path to the special lists log files directory.  The default
+is @file{/usr/local/special_lists/logs}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar MAILER_ERR_TOKENS
+@sp 1
+Contains a list of tokens for matching with words or phrases in the From:
+line of automatically generated MTA mailer error messages.  If not set,
+the default list of:@*
+@sp 1
+@noindent
+root daemon postmaster postfix sendmail qmail exim@*
+@sp 1
+@noindent
+is used for comparison.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar SPECIAL_LISTS
+@sp 1
+Contains the full path to the root directory of the special lists directory
+tree.  The default is @file{/usr/local/special_lists}, which is a link to
+/usr/local/share/lib_MTA-(version)/special_lists.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar SPECIAL_LIST_CFG_DIR
+@sp 1
+Contains the full path of the directory where the special list configuration
+files are located.  Setting and exporting this variable is mandatory for use
+of the special list filter functions of the lib_MTA library.  The suggested
+method of setting @code{SPECIAL_LIST_CFG_DIR} is either in a BASH configuration
+file under /etc/profile.d or in a .bashrc file in the user's home directory.a
+The file MTA.sh, suitable for setting SPECIAL_LIST_CFG_DIR under
+/etc/profile.d, is furnished with the distribution.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar VACATION_TOKENS
+@sp 1
+Contains a list of tokens for matching with words or phrases in the Subject:
+line of automatically generated vacation messages.  If not set, the default
+comma separated list of:@*
+@sp 1
+@noindent
+"on vacation" autoreply auto-reply "auto reply" "out of office" 
+"automated response" "away from my mail" "away from my email"
+@sp 1
+@noindent
+is used for comparison.
+@end defvar
+@c ###########################################################################
+@node Message Composition Variables
+@section Message Composition Global Variables
+@noindent
+File attachment information  entered during message composition is contained
+in arrays referenced by a unique index for each attachment.  The three
+global array variables which contain attachment information are described
+below. 
+@c --------------------------------------------------------------------------
+@defvar FILE[index]
+@sp 1
+Contains the full path to an attachment file retrivable by array @var{index}.
+This variable is set automatically by the the @code{input_attachments_MTA}
+function for each valid attachment file entered.  It can also be set
+manually (@xref{Cron Script Example}).
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar FILE_NAME[index]
+@sp 1
+Contains the basename of the attachment file held in @var{FILE[index]}.
+This variable is set automatically by the the @code{input_attachments_MTA}
+function for each valid attachment file entered.  It can also be set
+manually (@xref{Cron Script Example}).
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar MIME_TYPE[index]
+@sp 1
+Contains the mime type of the attachment file held in @var{FILE[index]}.
+This variable is set automatically by the the @code{input_attachments_MTA}
+function for each valid attachment file entered.  It can also be set manually
+using @code{get_mime_type_MTA}(@xref{Cron Script Example}).
+@end defvar
+@c ###########################################################################
+@node Mail Relay Variables
+@section Electronic Mail Relay Global Variables
+@c --------------------------------------------------------------------------
+@defvar FD
+@sp 1
+Holds the last file descriptor number opened by a call to @code{open_fd_MTA}.
+This variable is used by the relay functions to set local file descriptor
+variables before the next call to @code{open_fd_MTA}.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar LOG_ERRORS
+@sp 1
+Holds the full path to an error log file for logging mail relay errors.
+@var{LOG_ERRORS} automatically turns on error logging in the relay functions
+when set.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar OPEN_FD
+@sp 1
+Holds the last file descriptor number found to be available by a call to
+@code{get_open_fd_MTA}.  This variable is used by the @code{open_fd_MTA}
+function to open file descriptors.
+@end defvar
+@c --------------------------------------------------------------------------
+@defvar SECRETS
+@sp 1
+If set, the global @code{SECRETS} variable is used by the @code{relay_587_MTA}
+function to locate files containing authentication credentials encoded in base
+64.  Setting this variable is optional, and not recommended on multi-user
+computers.  If unset, the authentication functions @code{get_username_MTA} and
+@code{get_password_MTA} are invoked to prompt the user for authentication
+credentials.
+@sp 1
+The @code{SECRETS} variable should contain a full path to a directory.  The
+directory is expected to contain files named @file{secrets.@var{MTA}} where
+@var{MTA} is the fully qualified host name of the MTA Server which
+requires authentication.
+@sp 1
+The secrets files should be in the following format:
+@sp 1
+plain_auth="base 64->(username\0username\0password)"@*
+login_user="base 64->(username)"@*
+login_pass="base 64->(password)"@*
+@sp 1
+The @command{base64} program comes with most Linux distributions, and
+can be used to convert the authentication credentials to base 64.
+@strong{Caution:} Beware of the dreaded newline when piping input to base64
+to generate base 64 credentials.  Use echo -n or better yet printf without
+explicity putting an "\n" on the end.
+@sp 1
+A real secrets file should look something like this:
+@sp 1
+@command{cat $SECRETS/secrets.smtp.example.com}
+@sp 1
+plain_auth="amRvZQBqZG9lAHNlY3JldA=="@*
+login_user="amRvZQ=="@*
+login_pass="c2VjcmV0"@*
+
+Note the quotes around each base 64 parameter.  These are mandatory;
+without them equal signs within the base 64 string will confuse the shell,
+which treats each entry as an assignment.
+@end defvar
+@c ###########################################################################
+@c ###########################################################################
+@node Examples
+@chapter Examples
+The following example scripts are intended to show several uses of the lib_MTA
+library.  The examples are heavily commented to explain the logic and
+constructs.  The examples are included in the distribution of lib_MTA as
+individual files under the examples sub-directory of the Doc directory.
+@menu
+* Relay Mail Example::
+* Custom Relay Function Example::
+* List Filter Example::
+* Cron Script Example::
+@end menu
+@node Relay Mail Example 
+@section Example Script to Connect and Relay Mail on Port 465
+
+@verbatim
+#! /bin/bash
+##############################################################################
+# email-gmail
+# An example BASH script distributed with the lib_MTA.sh library
+# Compose an email message and relay it through smtp.gmail.com on port 465
+##############################################################################
+# Source the lib_MTA library first!
+if [[ ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        echo "Can't find the lib_MTA library!" >&2
+        exit 1
+    fi
+fi
+
+source "${LIB_MTA}"
+##############################################################################
+# Set/unset global variables (Unset is VARIBLE= )
+TIME_OUT=20                      # 20 seconds per wait, adjust as needed
+SECRETS=                         # Not recommended on multi-user hosts
+VERBOSE=true                     # Set if you want to see what's going on
+TTY=$(tty)                       # This should always be set
+LOG_ERRORS=/tmp/.MTA_errors.$$   # Usually a good thing
+FOOTER="\n\n-----------------------\nSent by email-gmail, a lib_MTA BASH \
+library application\n"
+##############################################################################
+client="localhost"        # localhost if dhcp, fully qual. name for static IP
+MTA="smtp.gmail.com"
+##############################################################################
+input_msg_help_MTA
+sender=$(input_sender_MTA)       # Your valid email address when prompted
+rcpts=$(input_rcpts_MTA)         # Valid rcpt email address(es) when prompted
+subject=$(input_subject_MTA)
+msg_body=$(input_msg_MTA)
+[[ ${?} -eq 123 ]] && {          # The user indicated there are attachments
+    TIME_OUT=300                 # Large attachments take a long time.
+    input_attachments_MTA
+}
+msg_body="${msg_body}${FOOTER}"
+email=$(format_msg_MTA "${sender}" "${rcpts}" "${subject}" "${msg_body}")
+relay_465_MTA "${client}" "${MTA}" "${sender}" "${rcpts}" "${email}"
+exit 0
+@end verbatim
+@node Custom Relay Function Example
+@section Example Custom Function for Relaying Email
+@verbatim
+function pipe_relay_MTA () {
+    # Args: [client_host MTA_server port sender recipients mail_msg] in order
+
+    # If LOG_ERRORS is set to a log file, redirect standard error
+    # to the log file via the log_relay_errs_MTA function.
+    [[ "${LOG_ERRORS}" ]] && log_relay_errs_MTA "${LOG_ERRORS}"
+
+    # Look at our port argument and set the options to ssl
+    # accordingly.  If we are going to use port 587, we also
+    # need to make sure STARTTLS is available.
+    case ${3} in
+        465) local ssl_opts="-ign_eof -connect ${2}:${3}"
+        ;;
+        587) local ssl_opts="-starttls smtp -bugs -ign_eof -connect ${2}:${3}"
+             local starttls=$(query_MTA ${1} ${2} 587 STARTTLS)
+             [[ ! "${starttls}" ]] && {
+                 relay_err_MTA "No secure relay support at ${2}."
+                 return 1
+             }
+        ;;
+          *) relay_err_MTA "Invalid port."; return 1
+        ;;
+    esac
+
+    # Strip the rcpts argument of extraneous junk, and format it
+    # properly for input to the MTA.
+    local rcpts=$(strip_rcpts_MTA "${5}") rcpt Plain Login Method
+
+    # Make sure we have openssl, otherwise the rest is pointless...
+    which openssl >/dev/null 2>&1 || {
+        relay_err_MTA "You need openssl to relay mail with TLS."; return 1
+    }
+
+    # If the SECRETS variable is set and we have secrets files,
+    # source them, otherwise prompt for username and password.
+    if [[ "${SECRETS}" && -s "${SECRETS}/secrets.${2}" ]]; then
+        source "${SECRETS}/secrets.${2}"
+    else
+        User=$(get_username_MTA ${2}); Pass=$(get_password_MTA ${2})
+        plain_auth=$(set_plain_auth_64_MTA "${User}" "${Pass}")
+        login_user=$(set_login_user_64_MTA "${User}")
+        login_pass=$(set_login_pass_64_MTA "${Pass}")
+    fi
+
+    # Create a named pipe for input to the server via openssl
+    PIPE1=$(create_pipe_MTA "/tmp/.pipe1.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    # Open a file descriptor to the named pipe and
+    # assign the file descriptor to variable P1.
+    open_fd_MTA "${PIPE1}" || {
+        remove_file_MTA ${PIPE1}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P1=${FD}
+    # Create a second named pipe for output from the server via openssl.
+    PIPE2=$(create_pipe_MTA "/tmp/.pipe2.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    # Open a file descriptor to the second named pipe and
+    # assign the file descriptor to variable P2.
+    open_fd_MTA "${PIPE2}" || {
+        close_fd_MTA ${P1};
+        remove_file_MTA ${PIPE1} ${PIPE2}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P2=${FD}
+
+    # Invoke openssl with s_client to do our TLS negotiation.
+    # Background it so our named pipes won't block and stop
+    # execution of the script.  Feed the MTA input via openssl
+    # using named pipe file descriptor P1 and read output from
+    # the MTA via openssl using named pipe file descriptor P2.
+    # If "${LOG_ERRORS}" is set, any output from openssl on
+    # standard error (file descriptor 2) will be logged to the
+    # file location assigned to LOG_ERRORS.
+    openssl s_client ${ssl_opts} <&${P1} >&${P2} &
+    ssl_pid=${!}      # Get the openssl pid for use with 'kill'
+
+    # It might seem crazy, but we can actually remove the pipes
+    # once they are connected and the file descriptors will
+    # continue to work until they are closed.  Saves remembering
+    # to remove them later...
+    remove_file_MTA ${PIPE1} ${PIPE2}
+
+    # The rest is the actual ESMTP conversation with the MTA.
+
+    dump_MTA ${P2}; send_MTA "ehlo ${1}" ${P1} # Dump TLS negotiation & send ehlo
+    Auth=$(get_service_MTA AUTH ${P2})         # Get the available auth choices
+    if [[ $Auth =~ ^.*AUTH[\ ](.*)$ ]]; then
+        for Method in ${BASH_REMATCH[1]}; do
+            [[ $Method =~ PLAIN ]] && Plain=true
+            [[ $Method =~ LOGIN ]] && Login=true
+        done
+    else # AUTH is not available, so bail...
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        relay_err_MTA "No supported authentication methods."
+        return 1
+    fi
+
+    if [[ ${Plain} = 'true' ]]; then # If available, make 'PLAIN' our first choice.
+        send_MTA "auth plain ${plain_auth}" ${P1}
+    elif [[ ${Login} = 'true' ]]; then # Otherwise, use 'LOGIN'
+        send_MTA "auth login"    ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_user}" ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_pass}" ${P1}
+    else # Neither 'PLAIN' or 'LOGIN' is available, so bail...
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        relay_err_MTA "No supported authentication methods."
+        return 1
+    fi
+
+    read_MTA 235 ${P2}
+    send_MTA "mail from: ${4}" ${P1} && read_MTA 250 ${P2} # Send the sender
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${P1} && read_MTA 250 ${P2} # Send rcpts
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${P1} && read_MTA 354 ${P2} # Ready to send msg body.
+    send_MTA "${6}" ${P1} && send_MTA "." ${P1} && read_MTA 250 ${P2} # Send message
+    send_MTA "quit" ${P1} && read_MTA 221 ${P2} # Done, so quit
+    close_fd_MTA ${P1}; close_fd_MTA ${P2}      # Clean up
+    kill -9 ${ssl_pid} > /dev/null 2>&1         # Make sure open_ssl goes away
+    return 0
+}
+@end verbatim
+@node List Filter Example
+@section Example Script to Filter Mailing List Outbound Email
+@verbatim
+#! /bin/bash
+# special_filter.sh
+###############################################################################
+# This filter script requires at least two special entries in the MTA aliases #
+# file and three configuration files for each mailing list.  There are other  #
+# requirements as well.  (See the README-LIST file distributed with the MTA   #
+# library for details on how to set up a mailing list to use this filter.)    #
+###############################################################################
+# Major implemented features:                                                 #
+#   Optional From: line rewrite (SPOOF)                                       #
+#   Optional Reply-To: line rewrite (SPOOF_REPLY)                             #
+#   Optional sender authorization check (AUTH_REQUIRED)                       #
+#   Optional attachment reject (NO_ATTACHMENTS)                               #
+#   Optional vacation reply reject (NO_VACATION)                              #
+#   Optional non-local posting rejection (MUST_BE_LOCAL)                      #
+#   Optional footer (FOOTER)                                                  #
+#   Optional Mailer error posting prevention (NO_MAIL_ERR)                    #
+#   Optional Spam tag posting prevention (NO_SPAM)                            #
+###############################################################################
+
+# Set the mailer agent
+Mailer_agent=sendmail
+
+# Set a reasonable path for what we need to find
+PATH="/bin:/sbin:/usr/sbin:/usr/bin:/usr/lib:/usr/local/sbin:/usr/local/bin"
+# Set a reasonable umask for file creation
+umask 0022
+# Who am I?
+PRGM=$(basename ${0})
+# What list is this?
+if [[ "${1}" ]]; then
+    List_name=${1}
+else
+    printf "This filter takes a list name argument\n\
+Usage: ${PRGM} List_name\n"
+    exit 1
+fi
+# If either SPECIAL_LIST_CFG_DIR or LIB_MTA is not set, see if an
+# /etc/profile.d/MTA.sh file is present.  Sourcing this file sets the
+# full path of both the special filter configuration files directory and the
+# lib_MTA library in global variables SPECIAL_LIST_CFG_DIR and LIB_MTA.
+# If the file is not there, bail, since we need both SPECIAL_LIST_CFG_DIR and
+# LIB_MTA to find everything.
+if [[ ! "${SPECIAL_LIST_CFG_DIR}" || ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        printf "\nCan't find the list configuration files and the \
+lib_MTA{.VERS}.sh library!\n\n"
+        exit 1
+    fi
+fi
+
+source ${LIB_MTA}                           # Source the lib_MTA library
+source "${SPECIAL_LIST_CFG_DIR}/MASTER.cfg" # Source master lists cfg. file
+source "${SPECIAL_LIST_CFG_DIR}/${List_name}.cfg"   # Source this list cfg.
+
+# Set TTY
+TTY=$(tty) 
+
+# If any mandatory global list variables are still not set, bail.
+if [[ ! "${SPECIAL_LISTS}" || ! "${LIST_DIR}" || ! "${LIST_ERROR_LOG}" || \
+! "${LIST_TRANS_LOG}" || ! "${FINAL}" ]]; then
+    printf "\nA mandatory parameter is missing!\nSee the README-LISTS \
+file which came with this distribution.\n\n"
+    exit 1
+fi
+
+# If ${REAL_LIST} is not set, assume it is the same as ${List_name}
+[[ ! "${REAL_LIST}" ]] && REAL_LIST=${List_name}
+
+# Make sure the list address file is findable and readable, otherwise bail.
+# Should be safe now to start logging errors to the list error file.
+if [[ ! "${LIST_DIR}" || ! -r "${LIST_DIR}/${REAL_LIST}" ]]; then
+    list_error_MTA "The list address file for ${REAL_LIST} is unusable!"
+    exit 1
+fi
+
+# If posting requires authorization, check that the list auth file
+# is both findable and readable.  Otherwise, bail.
+if [[ "${AUTH_REQUIRED}" ]]; then
+    if [[ ! "${AUTH_DIR}" || ! -r "${AUTH_DIR}/${List_name}.auth" ]]; then
+        list_error_MTA "List authorization is unusable."
+        exit 1
+    else
+        Auth_file="${AUTH_DIR}/${List_name}.auth"
+    fi
+fi
+
+# If posting is limited to local, make sure the local MTA is set,
+# otherwise bail.
+if [[ "${MUST_BE_LOCAL}" && ! "${LOCAL_MTA}" ]]; then
+    list_error_MTA "No local MTA is set in MASTER.cfg."
+    exit 1
+fi
+
+# Write the piped email message input to this script to a temporary file
+tmp=$(create_tmp_MTA "/tmp/.msg.$$") && cat > ${tmp}
+
+# Create appropriate return reasons for returned mail
+# flagged by the filter functions
+spam=$(cat << SPAM
+your message got tagged as 'LIKELY SPAM'.
+I did not want to send it out that way...
+SPAM)
+
+non_local=$(cat << NON_LOCAL
+you cannot post to ${List_name} from outside
+of the local domain
+NON_LOCAL)
+
+no_attach=$(cat << ATTACH
+attachments are not permitted to
+${List_name}
+ATTACH)
+
+auth_req=$(cat << AUTH
+you are not authorized to send email to
+${List_name}
+AUTH)
+
+# Get the sender for the error log file entries
+sender=$(get_From_MTA "${tmp}")
+
+# Ready to filter....
+# Filter actions ALWAYS exit 0 to avoid error response email from the MTA.
+
+if [[ ${NO_MAIL_ERR} = true ]]; then
+    kill_mailer_errs_MTA "${tmp}" "${MAILER_ERR_TOKENS}"
+    if [[ ${?} -eq 1 ]]; then
+        list_error_MTA "Mailer error response, dumped."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_SPAM} = true ]]; then
+    chk_Subject_MTA "${tmp}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${spam}"
+        list_error_MTA "LIKELY SPAM match from ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${MUST_BE_LOCAL} = true ]]; then
+    chk_Received_MTA "${tmp}" "${LOCAL_MTA}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${non_local}"
+        list_error_MTA "Non-local post attempt by ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_ATTACHMENTS} = true ]]; then
+    kill_attachments_MTA "${tmp}"
+    if [[ ${?} -eq 1 ]]; then
+        return_email_MTA "${tmp}" "${no_attach}"
+        list_error_MTA "Attachment sent by ${sender}, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${NO_VACATION} = true ]]; then
+    kill_vacation_MTA "${tmp}" "${VACATION_TOKENS}"
+    if [[ ${?} -eq 1 ]]; then
+        list_error_MTA "Vacation auto-reply from ${sender}, dumped."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ ${AUTH_REQUIRED} = true ]]; then
+    chk_auth_MTA "${tmp}" "${Auth_file}"
+    if [[ ${?} -eq 1 ]]; then
+        if [[ "${ALT_ADDRESS}" ]]; then
+            alternate_reply_MTA "${tmp}" "${ALT_ADDRESS}"
+        else
+            return_email_MTA "${tmp}" "${auth_req}"
+        fi
+        list_error_MTA "${sender} not authorized to post, returned."
+        remove_file_MTA "${tmp}"
+        exit 0
+    fi
+fi
+
+if [[ "${FOOTER}" ]]; then
+    add_footer_MTA "${tmp}" "${FOOTER}"
+fi
+
+# Header field args to replace_header_MTA ARE CASE SENSITIVE (.i.e must be
+# 'Reply-To'; NOT 'Reply-to' or 'reply-to or 'REPLY-TO' in order to match).
+# (Look at the header field in a real email if in doubt as to format.)
+if [ "${SPOOF}" ]; then
+    if [ "${SPOOF_REPLY}" ]; then
+        cat $tmp | replace_header_MTA Reply-To ${SPOOF} |\
+        replace_header_MTA From ${SPOOF} |\
+        ${Mailer_agent} "${FINAL}";
+    else
+        cat $tmp | replace_header_MTA Reply-To none |\
+        replace_header_MTA From ${SPOOF} |\
+        ${Mailer_agent} "${FINAL}";
+    fi
+
+else
+    cat $tmp | ${Mailer_agent} "${FINAL}";
+fi
+
+# Clean up and log the transaction
+remove_file_MTA "${tmp}"
+log_transaction_MTA "${List_name}"
+exit 0
+@end verbatim
+@node Cron Script Example
+@section Example Script to Email Nightly Backup
+@verbatim
+#! /bin/bash
+#############################################################################
+# email_bkup.sh                                                             #
+# Email backup file archives as attachments                                 #
+# Designed to  be invoked via an entry in crontab                           #
+# This is for relatively small size backup files of ~20 MB or less          #
+# Don't try this with a 2.0 GB file!  You will choke the MTA, if the        #
+# size limit is not exceeded first.                                         #
+#############################################################################
+
+# Source the lib_MTA library first!
+if [[ ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        echo "Can't find the lib_MTA library!" >&2
+        exit 1
+    fi
+fi
+
+source "${LIB_MTA}"
+
+# Set relevant global variables
+# Since this is part of a backup sequence, log errors
+LOG_ERRORS=/var/log/backup/email.log.txt
+SECRETS=/usr/local/etc/mail/.secrets 
+TTY=$(tty)
+TIME_OUT=300 # Long time-out, attachments take extra time.
+
+########################################################
+# Mandatory info for composing and mailing the message #
+########################################################
+client_host="my_computer@local.domain"                 #
+mta="MTA@local.domain"                                 #
+sender="<foo@locahost>"                                #
+rcpt="<someone@some.other.address>"                    #
+subject="Nightly Backup"                               #
+########################################################
+
+msg=$(cat << MSG                   
+Dear ${rcpt},
+
+The nightly backup from ${client_host} is attached.
+
+Signed,
+
+${sender}
+MSG)
+
+########################################################
+# The backup files we want to email                    #
+########################################################
+bkup_attach1="/tmp/bkup1.tar.bz2"                      #
+bkup_attach2="/tmp/bkup2.tar.bz2"                      #
+########################################################
+
+########################################################
+# Set global attachment vars used in format_msg_MTA    #
+########################################################
+FILE[1]=${bkup_attach1}                                #
+FILE[2]=${bkup_attach2}                                #
+FILE_NAME[1]=$(basename ${bkup_attach1})               #
+FILE_NAME[2]=$(basename ${bkup_attach2})               #
+# Get the mime type by passing the file names to       #
+# get_mime_type_MTA, where the file extension, in      #
+# this case bz2, will be used to look up the mime      #
+# type.                                                #
+MIME_TYPE[1]=$(get_mime_type_MTA ${FILE_NAME[1]})      #
+MIME_TYPE[2]=$(get_mime_type_MTA ${FILE_NAME[2]})      #
+########################################################
+
+# Format the whole thing into a sendable email
+bkup_email=$(format_msg_MTA "${sender}" "${rcpt}" "${subject}" "${msg}")
+
+# Send the email using one of the stock lib_MTA relay functions,
+# which one depends on what is supported on the MTA.
+relay_465_MTA "${client_host}" "${mta}" "${sender}" "${rcpt}" "${bkup_email}"
+
+exit 0
+@end verbatim
+@c ###########################################################################
+@c ###########################################################################
+@node Appendix A
+@appendix ESMTP Services LIST
+@c ###########################################################################
+List of ESMTP services from the IANA registry:
+(http://www.iana.org/assignments/mail-parameters).  Most Mail Tranport Agents
+will, in practice, offer only a small subset of the services listed.
+
+@multitable {ENHANCEDSTATUSCODES} {xxxxxxxxxxxxxxxxxxxxxxxxxxx} {[Eric Allman]}
+@item Registry: @tab @tab
+@item Keywords @tab Description @tab Reference
+@item -------------------  @tab ----------------------------------  @tab ---------
+@item SEND   @tab Send as mail                           @tab [RFC821]
+@item SOML   @tab Send as mail or terminal               @tab [RFC821]
+@item SAML   @tab Send as mail and terminal              @tab [RFC821]
+@item EXPN   @tab Expand the mailing list                @tab [RFC821]
+@item HELP   @tab Supply helpful information             @tab [RFC821]
+@item TURN   @tab Turn the operation around              @tab [RFC821]
+@item 8BITMIME  @tab Use 8-bit data                      @tab [RFC1652]
+@item SIZE      @tab Message size declaration            @tab [RFC1870]
+@item VERB   @tab Verbose                                @tab [Eric Allman]
+@item ONEX   @tab One message transaction only           @tab [Eric Allman]
+@item CHUNKING  @tab Chunking                            @tab [RFC3030]
+@item BINARYMIME @tab Binary MIME                        @tab [RFC3030]
+@item CHECKPOINT @tab Checkpoint/Restart                 @tab [RFC1845]
+@item DELIVERBY  @tab Delivery within prescribed period  @tab [RFC2852]
+@item PIPELINING @tab Command Pipelining                 @tab [RFC2920]
+@item DSN        @tab Delivery Status Notification       @tab [RFC3461]
+@item ETRN       @tab Extended Turn                      @tab [RFC1985] +
+@item ENHANCEDSTATUSCODES  @tab Enhanced Status Codes    @tab [RFC2034]
+@item STARTTLS   @tab Start TLS                          @tab [RFC3207]
+@item NO-SOLICITING @tab Notification of no soliciting   @tab [RFC3865]
+@item MTRK        @tab Message Tracking                  @tab [RFC3885]     
+@item SUBMITTER   @tab SMTP Responsible Submitter        @tab [RFC4405]
+@item ATRN        @tab Authenticated TURN                @tab [RFC2645] +
+@item AUTH        @tab Authentication                    @tab [RFC4954]
+@item BURL        @tab Remote Content                    @tab [RFC4468] *
+@item FUTURERELEASE   @tab Future Message Release        @tab [RFC4865]
+@item UTF8SMTP     @tab Internationalized email address  @tab [RFC5336]
+@end multitable
+@sp 2
+@noindent
++ SMTP [RFC5321] only. Not for use on Submit port 587.@*
+* Submit [RFC2476] only. Not for use with SMTP on port 25.@*
+@sp 2
+@noindent
+Some of these keywords have parameters.  These are listed here (those
+keywords not listed have no parameters).
+@sp 2
+@multitable {Authenticationx} {NO-SOLICITING} {SASL mechanism namesxx} {RFCXXXX}
+@item Service Ext @tab EHLO Keyword @tab Parameters @tab Reference
+@item ---------------  @tab -------------  @tab -----------------------  @tab ---------
+@item Size @tab SIZE @tab number @tab [RFC1870]
+@item No Soliciting @tab NO-SOLICITING @tab Soliciting-keywords @tab [RFC3865]
+@item Authentication @tab AUTH @tab SASL mechanism names + @tab [RFC4954]
+@item Remote Content @tab BURL @tab Permitted URL prefixes @tab [RFC4468]
+@end multitable
+@sp 2
+@noindent
++ SASL mechanisms include GSSAPI, PLAIN, LOGIN, EXTERNAL, DIGEST-MD5, and CRAM-MD5.
+@c ###########################################################################
+@node Appendix B
+@appendix GNU Free Documentation License
+@c ###########################################################################
+@c The GNU Free Documentation License.
+@center Version 1.3, 3 November 2008
+
+@display
+Copyright @copyright{} 2000, 2001, 2002, 2007, 2008 Free Software Foundation, Inc.
+@uref{http://fsf.org/}
+
+Everyone is permitted to copy and distribute verbatim copies
+of this license document, but changing it is not allowed.
+@end display
+
+@enumerate 0
+@item
+PREAMBLE
+
+The purpose of this License is to make a manual, textbook, or other
+functional and useful document @dfn{free} in the sense of freedom: to
+assure everyone the effective freedom to copy and redistribute it,
+with or without modifying it, either commercially or noncommercially.
+Secondarily, this License preserves for the author and publisher a way
+to get credit for their work, while not being considered responsible
+for modifications made by others.
+
+This License is a kind of ``copyleft'', which means that derivative
+works of the document must themselves be free in the same sense.  It
+complements the GNU General Public License, which is a copyleft
+license designed for free software.
+
+We have designed this License in order to use it for manuals for free
+software, because free software needs free documentation: a free
+program should come with manuals providing the same freedoms that the
+software does.  But this License is not limited to software manuals;
+it can be used for any textual work, regardless of subject matter or
+whether it is published as a printed book.  We recommend this License
+principally for works whose purpose is instruction or reference.
+
+@item
+APPLICABILITY AND DEFINITIONS
+
+This License applies to any manual or other work, in any medium, that
+contains a notice placed by the copyright holder saying it can be
+distributed under the terms of this License.  Such a notice grants a
+world-wide, royalty-free license, unlimited in duration, to use that
+work under the conditions stated herein.  The ``Document'', below,
+refers to any such manual or work.  Any member of the public is a
+licensee, and is addressed as ``you''.  You accept the license if you
+copy, modify or distribute the work in a way requiring permission
+under copyright law.
+
+A ``Modified Version'' of the Document means any work containing the
+Document or a portion of it, either copied verbatim, or with
+modifications and/or translated into another language.
+
+A ``Secondary Section'' is a named appendix or a front-matter section
+of the Document that deals exclusively with the relationship of the
+publishers or authors of the Document to the Document's overall
+subject (or to related matters) and contains nothing that could fall
+directly within that overall subject.  (Thus, if the Document is in
+part a textbook of mathematics, a Secondary Section may not explain
+any mathematics.)  The relationship could be a matter of historical
+connection with the subject or with related matters, or of legal,
+commercial, philosophical, ethical or political position regarding
+them.
+
+The ``Invariant Sections'' are certain Secondary Sections whose titles
+are designated, as being those of Invariant Sections, in the notice
+that says that the Document is released under this License.  If a
+section does not fit the above definition of Secondary then it is not
+allowed to be designated as Invariant.  The Document may contain zero
+Invariant Sections.  If the Document does not identify any Invariant
+Sections then there are none.
+
+The ``Cover Texts'' are certain short passages of text that are listed,
+as Front-Cover Texts or Back-Cover Texts, in the notice that says that
+the Document is released under this License.  A Front-Cover Text may
+be at most 5 words, and a Back-Cover Text may be at most 25 words.
+
+A ``Transparent'' copy of the Document means a machine-readable copy,
+represented in a format whose specification is available to the
+general public, that is suitable for revising the document
+straightforwardly with generic text editors or (for images composed of
+pixels) generic paint programs or (for drawings) some widely available
+drawing editor, and that is suitable for input to text formatters or
+for automatic translation to a variety of formats suitable for input
+to text formatters.  A copy made in an otherwise Transparent file
+format whose markup, or absence of markup, has been arranged to thwart
+or discourage subsequent modification by readers is not Transparent.
+An image format is not Transparent if used for any substantial amount
+of text.  A copy that is not ``Transparent'' is called ``Opaque''.
+
+Examples of suitable formats for Transparent copies include plain
+@sc{ascii} without markup, Texinfo input format, La@TeX{} input
+format, @acronym{SGML} or @acronym{XML} using a publicly available
+@acronym{DTD}, and standard-conforming simple @acronym{HTML},
+PostScript or @acronym{PDF} designed for human modification.  Examples
+of transparent image formats include @acronym{PNG}, @acronym{XCF} and
+@acronym{JPG}.  Opaque formats include proprietary formats that can be
+read and edited only by proprietary word processors, @acronym{SGML} or
+@acronym{XML} for which the @acronym{DTD} and/or processing tools are
+not generally available, and the machine-generated @acronym{HTML},
+PostScript or @acronym{PDF} produced by some word processors for
+output purposes only.
+
+The ``Title Page'' means, for a printed book, the title page itself,
+plus such following pages as are needed to hold, legibly, the material
+this License requires to appear in the title page.  For works in
+formats which do not have any title page as such, ``Title Page'' means
+the text near the most prominent appearance of the work's title,
+preceding the beginning of the body of the text.
+
+The ``publisher'' means any person or entity that distributes copies
+of the Document to the public.
+
+A section ``Entitled XYZ'' means a named subunit of the Document whose
+title either is precisely XYZ or contains XYZ in parentheses following
+text that translates XYZ in another language.  (Here XYZ stands for a
+specific section name mentioned below, such as ``Acknowledgements'',
+``Dedications'', ``Endorsements'', or ``History''.)  To ``Preserve the Title''
+of such a section when you modify the Document means that it remains a
+section ``Entitled XYZ'' according to this definition.
+
+The Document may include Warranty Disclaimers next to the notice which
+states that this License applies to the Document.  These Warranty
+Disclaimers are considered to be included by reference in this
+License, but only as regards disclaiming warranties: any other
+implication that these Warranty Disclaimers may have is void and has
+no effect on the meaning of this License.
+
+@item
+VERBATIM COPYING
+
+You may copy and distribute the Document in any medium, either
+commercially or noncommercially, provided that this License, the
+copyright notices, and the license notice saying this License applies
+to the Document are reproduced in all copies, and that you add no other
+conditions whatsoever to those of this License.  You may not use
+technical measures to obstruct or control the reading or further
+copying of the copies you make or distribute.  However, you may accept
+compensation in exchange for copies.  If you distribute a large enough
+number of copies you must also follow the conditions in section 3.
+
+You may also lend copies, under the same conditions stated above, and
+you may publicly display copies.
+
+@item
+COPYING IN QUANTITY
+
+If you publish printed copies (or copies in media that commonly have
+printed covers) of the Document, numbering more than 100, and the
+Document's license notice requires Cover Texts, you must enclose the
+copies in covers that carry, clearly and legibly, all these Cover
+Texts: Front-Cover Texts on the front cover, and Back-Cover Texts on
+the back cover.  Both covers must also clearly and legibly identify
+you as the publisher of these copies.  The front cover must present
+the full title with all words of the title equally prominent and
+visible.  You may add other material on the covers in addition.
+Copying with changes limited to the covers, as long as they preserve
+the title of the Document and satisfy these conditions, can be treated
+as verbatim copying in other respects.
+
+If the required texts for either cover are too voluminous to fit
+legibly, you should put the first ones listed (as many as fit
+reasonably) on the actual cover, and continue the rest onto adjacent
+pages.
+
+If you publish or distribute Opaque copies of the Document numbering
+more than 100, you must either include a machine-readable Transparent
+copy along with each Opaque copy, or state in or with each Opaque copy
+a computer-network location from which the general network-using
+public has access to download using public-standard network protocols
+a complete Transparent copy of the Document, free of added material.
+If you use the latter option, you must take reasonably prudent steps,
+when you begin distribution of Opaque copies in quantity, to ensure
+that this Transparent copy will remain thus accessible at the stated
+location until at least one year after the last time you distribute an
+Opaque copy (directly or through your agents or retailers) of that
+edition to the public.
+
+It is requested, but not required, that you contact the authors of the
+Document well before redistributing any large number of copies, to give
+them a chance to provide you with an updated version of the Document.
+
+@item
+MODIFICATIONS
+
+You may copy and distribute a Modified Version of the Document under
+the conditions of sections 2 and 3 above, provided that you release
+the Modified Version under precisely this License, with the Modified
+Version filling the role of the Document, thus licensing distribution
+and modification of the Modified Version to whoever possesses a copy
+of it.  In addition, you must do these things in the Modified Version:
+
+@enumerate A
+@item
+Use in the Title Page (and on the covers, if any) a title distinct
+from that of the Document, and from those of previous versions
+(which should, if there were any, be listed in the History section
+of the Document).  You may use the same title as a previous version
+if the original publisher of that version gives permission.
+
+@item
+List on the Title Page, as authors, one or more persons or entities
+responsible for authorship of the modifications in the Modified
+Version, together with at least five of the principal authors of the
+Document (all of its principal authors, if it has fewer than five),
+unless they release you from this requirement.
+
+@item
+State on the Title page the name of the publisher of the
+Modified Version, as the publisher.
+
+@item
+Preserve all the copyright notices of the Document.
+
+@item
+Add an appropriate copyright notice for your modifications
+adjacent to the other copyright notices.
+
+@item
+Include, immediately after the copyright notices, a license notice
+giving the public permission to use the Modified Version under the
+terms of this License, in the form shown in the Addendum below.
+
+@item
+Preserve in that license notice the full lists of Invariant Sections
+and required Cover Texts given in the Document's license notice.
+
+@item
+Include an unaltered copy of this License.
+
+@item
+Preserve the section Entitled ``History'', Preserve its Title, and add
+to it an item stating at least the title, year, new authors, and
+publisher of the Modified Version as given on the Title Page.  If
+there is no section Entitled ``History'' in the Document, create one
+stating the title, year, authors, and publisher of the Document as
+given on its Title Page, then add an item describing the Modified
+Version as stated in the previous sentence.
+
+@item
+Preserve the network location, if any, given in the Document for
+public access to a Transparent copy of the Document, and likewise
+the network locations given in the Document for previous versions
+it was based on.  These may be placed in the ``History'' section.
+You may omit a network location for a work that was published at
+least four years before the Document itself, or if the original
+publisher of the version it refers to gives permission.
+
+@item
+For any section Entitled ``Acknowledgements'' or ``Dedications'', Preserve
+the Title of the section, and preserve in the section all the
+substance and tone of each of the contributor acknowledgements and/or
+dedications given therein.
+
+@item
+Preserve all the Invariant Sections of the Document,
+unaltered in their text and in their titles.  Section numbers
+or the equivalent are not considered part of the section titles.
+
+@item
+Delete any section Entitled ``Endorsements''.  Such a section
+may not be included in the Modified Version.
+
+@item
+Do not retitle any existing section to be Entitled ``Endorsements'' or
+to conflict in title with any Invariant Section.
+
+@item
+Preserve any Warranty Disclaimers.
+@end enumerate
+
+If the Modified Version includes new front-matter sections or
+appendices that qualify as Secondary Sections and contain no material
+copied from the Document, you may at your option designate some or all
+of these sections as invariant.  To do this, add their titles to the
+list of Invariant Sections in the Modified Version's license notice.
+These titles must be distinct from any other section titles.
+
+You may add a section Entitled ``Endorsements'', provided it contains
+nothing but endorsements of your Modified Version by various
+parties---for example, statements of peer review or that the text has
+been approved by an organization as the authoritative definition of a
+standard.
+
+You may add a passage of up to five words as a Front-Cover Text, and a
+passage of up to 25 words as a Back-Cover Text, to the end of the list
+of Cover Texts in the Modified Version.  Only one passage of
+Front-Cover Text and one of Back-Cover Text may be added by (or
+through arrangements made by) any one entity.  If the Document already
+includes a cover text for the same cover, previously added by you or
+by arrangement made by the same entity you are acting on behalf of,
+you may not add another; but you may replace the old one, on explicit
+permission from the previous publisher that added the old one.
+
+The author(s) and publisher(s) of the Document do not by this License
+give permission to use their names for publicity for or to assert or
+imply endorsement of any Modified Version.
+
+@item
+COMBINING DOCUMENTS
+
+You may combine the Document with other documents released under this
+License, under the terms defined in section 4 above for modified
+versions, provided that you include in the combination all of the
+Invariant Sections of all of the original documents, unmodified, and
+list them all as Invariant Sections of your combined work in its
+license notice, and that you preserve all their Warranty Disclaimers.
+
+The combined work need only contain one copy of this License, and
+multiple identical Invariant Sections may be replaced with a single
+copy.  If there are multiple Invariant Sections with the same name but
+different contents, make the title of each such section unique by
+adding at the end of it, in parentheses, the name of the original
+author or publisher of that section if known, or else a unique number.
+Make the same adjustment to the section titles in the list of
+Invariant Sections in the license notice of the combined work.
+
+In the combination, you must combine any sections Entitled ``History''
+in the various original documents, forming one section Entitled
+``History''; likewise combine any sections Entitled ``Acknowledgements'',
+and any sections Entitled ``Dedications''.  You must delete all
+sections Entitled ``Endorsements.''
+
+@item
+COLLECTIONS OF DOCUMENTS
+
+You may make a collection consisting of the Document and other documents
+released under this License, and replace the individual copies of this
+License in the various documents with a single copy that is included in
+the collection, provided that you follow the rules of this License for
+verbatim copying of each of the documents in all other respects.
+
+You may extract a single document from such a collection, and distribute
+it individually under this License, provided you insert a copy of this
+License into the extracted document, and follow this License in all
+other respects regarding verbatim copying of that document.
+
+@item
+AGGREGATION WITH INDEPENDENT WORKS
+
+A compilation of the Document or its derivatives with other separate
+and independent documents or works, in or on a volume of a storage or
+distribution medium, is called an ``aggregate'' if the copyright
+resulting from the compilation is not used to limit the legal rights
+of the compilation's users beyond what the individual works permit.
+When the Document is included in an aggregate, this License does not
+apply to the other works in the aggregate which are not themselves
+derivative works of the Document.
+
+If the Cover Text requirement of section 3 is applicable to these
+copies of the Document, then if the Document is less than one half of
+the entire aggregate, the Document's Cover Texts may be placed on
+covers that bracket the Document within the aggregate, or the
+electronic equivalent of covers if the Document is in electronic form.
+Otherwise they must appear on printed covers that bracket the whole
+aggregate.
+
+@item
+TRANSLATION
+
+Translation is considered a kind of modification, so you may
+distribute translations of the Document under the terms of section 4.
+Replacing Invariant Sections with translations requires special
+permission from their copyright holders, but you may include
+translations of some or all Invariant Sections in addition to the
+original versions of these Invariant Sections.  You may include a
+translation of this License, and all the license notices in the
+Document, and any Warranty Disclaimers, provided that you also include
+the original English version of this License and the original versions
+of those notices and disclaimers.  In case of a disagreement between
+the translation and the original version of this License or a notice
+or disclaimer, the original version will prevail.
+
+If a section in the Document is Entitled ``Acknowledgements'',
+``Dedications'', or ``History'', the requirement (section 4) to Preserve
+its Title (section 1) will typically require changing the actual
+title.
+
+@item
+TERMINATION
+
+You may not copy, modify, sublicense, or distribute the Document
+except as expressly provided under this License.  Any attempt
+otherwise to copy, modify, sublicense, or distribute it is void, and
+will automatically terminate your rights under this License.
+
+However, if you cease all violation of this License, then your license
+from a particular copyright holder is reinstated (a) provisionally,
+unless and until the copyright holder explicitly and finally
+terminates your license, and (b) permanently, if the copyright holder
+fails to notify you of the violation by some reasonable means prior to
+60 days after the cessation.
+
+Moreover, your license from a particular copyright holder is
+reinstated permanently if the copyright holder notifies you of the
+violation by some reasonable means, this is the first time you have
+received notice of violation of this License (for any work) from that
+copyright holder, and you cure the violation prior to 30 days after
+your receipt of the notice.
+
+Termination of your rights under this section does not terminate the
+licenses of parties who have received copies or rights from you under
+this License.  If your rights have been terminated and not permanently
+reinstated, receipt of a copy of some or all of the same material does
+not give you any rights to use it.
+
+@item
+FUTURE REVISIONS OF THIS LICENSE
+
+The Free Software Foundation may publish new, revised versions
+of the GNU Free Documentation License from time to time.  Such new
+versions will be similar in spirit to the present version, but may
+differ in detail to address new problems or concerns.  See
+@uref{http://www.gnu.org/copyleft/}.
+
+Each version of the License is given a distinguishing version number.
+If the Document specifies that a particular numbered version of this
+License ``or any later version'' applies to it, you have the option of
+following the terms and conditions either of that specified version or
+of any later version that has been published (not as a draft) by the
+Free Software Foundation.  If the Document does not specify a version
+number of this License, you may choose any version ever published (not
+as a draft) by the Free Software Foundation.  If the Document
+specifies that a proxy can decide which future versions of this
+License can be used, that proxy's public statement of acceptance of a
+version permanently authorizes you to choose that version for the
+Document.
+
+@item
+RELICENSING
+
+``Massive Multiauthor Collaboration Site'' (or ``MMC Site'') means any
+World Wide Web server that publishes copyrightable works and also
+provides prominent facilities for anybody to edit those works.  A
+public wiki that anybody can edit is an example of such a server.  A
+``Massive Multiauthor Collaboration'' (or ``MMC'') contained in the
+site means any set of copyrightable works thus published on the MMC
+site.
+
+``CC-BY-SA'' means the Creative Commons Attribution-Share Alike 3.0
+license published by Creative Commons Corporation, a not-for-profit
+corporation with a principal place of business in San Francisco,
+California, as well as future copyleft versions of that license
+published by that same organization.
+
+``Incorporate'' means to publish or republish a Document, in whole or
+in part, as part of another Document.
+
+An MMC is ``eligible for relicensing'' if it is licensed under this
+License, and if all works that were first published under this License
+somewhere other than this MMC, and subsequently incorporated in whole
+or in part into the MMC, (1) had no cover texts or invariant sections,
+and (2) were thus incorporated prior to November 1, 2008.
+
+The operator of an MMC Site may republish an MMC contained in the site
+under CC-BY-SA on the same site at any time before August 1, 2009,
+provided the MMC is eligible for relicensing.
+
+@end enumerate
+
+@page
+@heading ADDENDUM: How to use this License for your documents
+
+To use this License in a document you have written, include a copy of
+the License in the document and put the following copyright and
+license notices just after the title page:
+
+@smallexample
+@group
+  Copyright (C)  @var{year}  @var{your name}.
+  Permission is granted to copy, distribute and/or modify this document
+  under the terms of the GNU Free Documentation License, Version 1.3
+  or any later version published by the Free Software Foundation;
+  with no Invariant Sections, no Front-Cover Texts, and no Back-Cover
+  Texts.  A copy of the license is included in the section entitled ``GNU
+  Free Documentation License''.
+@end group
+@end smallexample
+
+If you have Invariant Sections, Front-Cover Texts and Back-Cover Texts,
+replace the ``with@dots{}Texts.'' line with this:
+
+@smallexample
+@group
+    with the Invariant Sections being @var{list their titles}, with
+    the Front-Cover Texts being @var{list}, and with the Back-Cover Texts
+    being @var{list}.
+@end group
+@end smallexample
+
+If you have Invariant Sections without Cover Texts, or some other
+combination of the three, merge those two alternatives to suit the
+situation.
+
+If your document contains nontrivial examples of program code, we
+recommend releasing these examples in parallel under your choice of
+free software license, such as the GNU General Public License,
+to permit their use in free software.
+
+@c ###########################################################################
+@node Index
+@unnumbered Index of Library Functions and Global Variables
+@printindex fn
+@c ###########################################################################
+@bye
+

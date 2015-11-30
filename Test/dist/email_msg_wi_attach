@@ -1,0 +1,59 @@
+Return-Path: <andrews@localhost.localdomain>
+Received: from aurora.localhost.localdomain (localhost [127.0.0.1])
+	by aurora.localhost.localdomain (8.14.3/8.14.3) with ESMTP id n4H9rMig023425
+	(version=TLSv1/SSLv3 cipher=DHE-RSA-AES256-SHA bits=256 verify=NOT)
+	for <andrews@localhost.localdomain>; Sun, 17 May 2009 02:53:23 -0700
+Received: (from andrews@localhost)
+	by aurora.localhost.localdomain (8.14.3/8.14.3/Submit) id n4H9rM9r023423
+	for andrews@localhost.localdomain; Sun, 17 May 2009 02:53:22 -0700
+X-Authentication-Warning: aurora.localhost.localdomain: andrews set sender to andrews@localhost.localdomain using -f
+From: Tom Andrews <andrews@localhost.localdomain>
+To: andrews@localhost.localdomain
+Subject: Attachment auto reply
+Date: Sun, 17 May 2009 02:53:14 -0700
+User-Agent: KMail/1.11.2 (Linux/2.6.27.21-170.2.56.fc10.x86_64; KDE/4.2.2; x86_64; ; )
+MIME-Version: 1.0
+Content-Type: Multipart/Mixed;
+  boundary="Boundary-00=_K69DKGHY6YBbxj6"
+Message-Id: <200905170253.14879.teandrews@gmail.com>
+Status: RO
+X-Status: UT
+X-KMail-EncryptionState:  
+X-KMail-SignatureState:  
+X-KMail-MDN-Sent:  
+
+--Boundary-00=_K69DKGHY6YBbxj6
+Content-Type: multipart/alternative;
+  boundary="Boundary-00=_K69DKeu9fk67Q1v"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: inline
+
+--Boundary-00=_K69DKeu9fk67Q1v
+Content-Type: text/plain;
+  charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Should get dumped for the right reason.
+
+--Boundary-00=_K69DKeu9fk67Q1v
+Content-Type: text/html;
+  charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd"><html><head><meta name="qrichtext" content="1" /><style type="text/css">p, li { white-space: pre-wrap; }</style></head><body style=" font-family:'Sans Serif'; font-size:10pt; font-weight:400; font-style:normal;">Should get dumped for the right reason.</p></body></html>
+
+--Boundary-00=_K69DKeu9fk67Q1v--
+
+--Boundary-00=_K69DKGHY6YBbxj6
+Content-Type: application/x-shellscript;
+  name="bkup.sh"
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment;
+	filename="bkup.sh"
+__________________________________________
+Powered by lib_MTA
+A BASH library for electronic mail
+Copyright (c) 2009 Tom Andrews
+
+--Boundary-00=_K69DKGHY6YBbxj6--

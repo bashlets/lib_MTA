@@ -1,0 +1,92 @@
+INSTALLING LIB_MTA
+^^^^^^^^^^^^^^^^^^
+
+Mandatory Requirements
+----------------------
+The library REQUIRES BASH 3.2.  Older versions lack features which
+the library depends on.  A certain number of external commands are also
+required to provide the core functionality of the library.  The external
+commands used by the library are:
+
+sync
+cat
+date
+grep
+awk
+sed
+rm
+basename
+head
+tail
+mkfifo
+tr
+tty
+which
+lsof
+kill
+sendmail (or a link to a compatible replacement such as postfix)
+openssl
+base64
+
+I would expect that most Unix distro's should install most, if not all of
+these as part of the core binaries.  If you are missing any of them, you
+will need to obtain and install the missing component(s) to get the build
+of the library to work.  Versions of BASH older than 3.2 will also prevent
+the build from working.  Version 3.2 fixed regular expression evaluation,
+which the library depends heavily on.
+
+Another possible issue with some flavors of Unix/Linux is the features
+compiled into BASH.  For example, in the Debian/Ubuntu Linuxes, the
+feature, --enable-net-redirections is NOT compiled in, apparently for
+security reasons (the netcat binary IS provided though).  You will have
+to re-build BASH if for some reason, one or more of the default features
+is not compiled into the binary which comes with the distro.  Fortunately,
+BASH is relatively easy to compile on most platforms, and the feature
+defaults, if left alone, are adequate.   The library has not been tested
+with the new BASH 4.0, so if you are having issues with your vendor's BASH,
+it would be best to build BASH 3.2.44 as a replacement.  Be sure and read
+the INSTALL that comes with the source code beforehand. 
+ 
+The configure script will allow a link to another sendmail compatible MTA
+such as postfix to count as the actual sendmail binary.  (Note: Quasi MTA
+programs like msmtp will not work!)  I have not tested any other, sendmail
+compatible MTA replacements with the library, and would appreciate hearing
+about any experience with other MTAs.
+
+Installation Steps
+------------------
+The installation requires root privileges.  That said, the install is very
+straightforward.  The steps are:
+
+	1) Type './configure' to generate the Makefile.  The default
+	   install {prefix} is /usr/local.  Another prefix should work,
+           but has not been tested.  If you have any missing required
+           programs which are actually on your system, but were not
+           found by the configure script, you may be able to tell
+           configure where to look with an environmental variable.  Type
+           ./configure --help for a list of the programs which can be
+           specified this way.  Also check your path variable.  Configure
+           uses it to look for programs.  If it is unset, or missing some
+           key components, you will need to set it properly.
+
+	2) Type 'make' to build the installation files.
+
+        3) Type 'make test' to run the test suite on the library.  If you
+           have network connectivity and a running MTA answering on port
+           25 as localhost or with a static IP address, type make
+           'MTA_test' to test the functions which require an MTA.  Don't
+           be alarmed if a few of the tests fail on your system.  I tried
+           to use completely portable tests, but inevitably, some may not
+           be as portable as hoped.  However, if a large number of tests
+           fail, your version of BASH may be lacking some key feature(s)
+           required by the library.  Unfortunately, there is no easy way
+           of confirming this without re-compiling BASH.
+           
+	4) Type 'make install' to install the library and ancillary files.
+
+	5) Read the README and README-LISTS to get started.
+
+	6) The full documentation is installed as an info file.  To read the
+	   info documentation, type 'info lib_MTA'.  Several other formats of
+	   the documentation are available in the docs directory under
+	   {prefix}/share/lib_MTA-{vers}/docs, including dvi, pdf and html.

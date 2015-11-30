@@ -1,0 +1,4 @@
+# 1
+printf "/etc/passwd\nq\n" | test_func_wi_return_MTA input_attachments_MTA none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

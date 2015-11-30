@@ -1,0 +1,39 @@
+# 7
+TMP=temp_file
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > ${TMP}
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "2220 ${TMP}" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "22 ${TMP}" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "220,foobar ${TMP}" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "220,foobar ${TMP} 10" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "220 ${TMP} 40" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "220 ${TMP} 40" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+open_fd_MTA "/dev/tcp/${1}/25"
+read -u $FD && echo $REPLY > temp_file
+close_fd_MTA ${FD}
+test_func_wi_return_MTA wait_for_MTA "220 ${TMP} 40 foobar" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+rm -f temp_file
+exit $PASSED

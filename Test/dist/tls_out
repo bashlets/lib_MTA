@@ -1,0 +1,51 @@
+CONNECTED(00000004)
+---
+Certificate chain
+ 0 s:/C=US/ST=California/L=Mountain View/O=Google Inc/CN=smtp.gmail.com
+   i:/C=ZA/ST=Western Cape/L=Cape Town/O=Thawte Consulting cc/OU=Certification Services Division/CN=Thawte Premium Server CA/emailAddress=premium-server@thawte.com
+---
+Server certificate
+-----BEGIN CERTIFICATE-----
+MIIDYzCCAsygAwIBAgIQUR2EgGT4+hGKEhCgLMX2sjANBgkqhkiG9w0BAQUFADCB
+zjELMAkGA1UEBhMCWkExFTATBgNVBAgTDFdlc3Rlcm4gQ2FwZTESMBAGA1UEBxMJ
+Q2FwZSBUb3duMR0wGwYDVQQKExRUaGF3dGUgQ29uc3VsdGluZyBjYzEoMCYGA1UE
+CxMfQ2VydGlmaWNhdGlvbiBTZXJ2aWNlcyBEaXZpc2lvbjEhMB8GA1UEAxMYVGhh
+d3RlIFByZW1pdW0gU2VydmVyIENBMSgwJgYJKoZIhvcNAQkBFhlwcmVtaXVtLXNl
+cnZlckB0aGF3dGUuY29tMB4XDTA3MDczMDAwMDAwMFoXDTEwMDcyOTIzNTk1OVow
+aDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDU1v
+dW50YWluIFZpZXcxEzARBgNVBAoTCkdvb2dsZSBJbmMxFzAVBgNVBAMTDnNtdHAu
+Z21haWwuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD+RiG+G3Mo9Q9C
+tcwDjpp6dJGifjiR5M2DbEbrsIOlth80nk5A7xstKCUfKobHkf/G9Y/DO24JP5yT
+s3hWep05ybyiCmOzGL5K0zy3jIq0vOWy+4pLv2GsDjYi9mQBhobAAx3z38tTrTL+
+WF4p0/Kl014+wnukIpj4MdF35rIkgQIDAQABo4GmMIGjMB0GA1UdJQQWMBQGCCsG
+AQUFBwMBBggrBgEFBQcDAjBABgNVHR8EOTA3MDWgM6Axhi9odHRwOi8vY3JsLnRo
+YXd0ZS5jb20vVGhhd3RlUHJlbWl1bVNlcnZlckNBLmNybDAyBggrBgEFBQcBAQQm
+MCQwIgYIKwYBBQUHMAGGFmh0dHA6Ly9vY3NwLnRoYXd0ZS5jb20wDAYDVR0TAQH/
+BAIwADANBgkqhkiG9w0BAQUFAAOBgQBeNYOZwMVQ7bd6b4sueAkgm57Cyv2p1Xv1
+52e8bLnWqd03mWgn/+TQtrwbE1E6pVuQaZJY33ILpt8IfzwVf2TGQI+M5yazZ2fC
+xwArHo20iAss3MLQR8tDXWfBoH2Lk9BBsEKDRP4hp83yfpZgdY3pinHTCbqHpsiS
+v97epiiFBA==
+-----END CERTIFICATE-----
+subject=/C=US/ST=California/L=Mountain View/O=Google Inc/CN=smtp.gmail.com
+issuer=/C=ZA/ST=Western Cape/L=Cape Town/O=Thawte Consulting cc/OU=Certification Services Division/CN=Thawte Premium Server CA/emailAddress=premium-server@thawte.com
+---
+No client certificate CA names sent
+---
+SSL handshake has read 1230 bytes and written 346 bytes
+---
+New, TLSv1/SSLv3, Cipher is RC4-MD5
+Server public key is 1024 bit
+Compression: NONE
+Expansion: NONE
+SSL-Session:
+    Protocol  : TLSv1
+    Cipher    : RC4-MD5
+    Session-ID: 2B6BAFE579B5BC11C4D46D6F69C5C6E1983A977E0F9E7E5CE0513D94757FDBFF
+    Session-ID-ctx:
+    Master-Key: 807DA51D4A30F44682E766AEA7C9997815344A806335185B0B6C1550AD7970040F7A40AB13AEE244304FE1F8CCBBCAAD
+    Key-Arg   : None
+    Krb5 Principal: None
+    Start Time: 1243567228
+    Timeout   : 300 (sec)
+    Verify return code: 0 (ok)
+---

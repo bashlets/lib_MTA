@@ -1,0 +1,16 @@
+#                    Example testlist authorization file                     #
+##############################################################################
+# Whatever you put in here should be an EXACT MATCH to the sender address.   #
+# The sender address is considered to be the actual email address inside     #
+# the bracketed portion of addresses like: 'Felix Unger <feel4u@nodes.net>'. #
+# This is a security feature to prevent spammers and any other unwanted      #
+# senders from posting to your list.  If John Doe needs to post to the list  #
+# from several email accounts with different sender addresses, it is best    #
+# to include them separately.  Partial address matching will also work,      #
+# but is discouraged here because it lessens security.                       #
+##############################################################################
+mabel@label.com
+feel4u@nodes.net
+johndoe@somewhere.org
+johndoe@nowhere.org
+johndoe # <- Will work, but discouraged, too easy for spammers to match

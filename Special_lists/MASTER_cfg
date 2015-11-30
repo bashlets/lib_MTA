@@ -1,0 +1,54 @@
+#            The Master Configuration File for all Special Lists.            #
+##############################################################################
+
+# ----------------------------------------------------------------------------
+# Your local MTA.  Set to the fully qualified name (i.e. some_MTA.some.domain)
+# if you want to set and use MUST_BE_LOCAL for any of your lists
+# ----------------------------------------------------------------------------
+LOCAL_MTA=
+
+# ----------------------------------------------------------------------------
+# Lists of word tokens used by the kill_mailer_errs_MTA and the
+# kill_vacation_MTA functions to spot mailer errors and automated responses.
+# Internal defaults, which are identical to the tokens below BEFORE you
+# alter them, are used if either MAILER_ERR_TOKENS or VACATION_TOKENS is
+# not defined here.  There are no hard and fast rules for editing these.
+# Over time you should figure what works best for your site.  CAUTION:
+# You don't want to match legitimate sender From addresses, or legitimate
+# Subject lines so craft changes to these carefully.  Note also that the
+# VACATION_TOKENS are comma separated, WITHOUT SPACES on either side of
+# the commas.
+# ----------------------------------------------------------------------------
+MAILER_ERR_TOKENS="root daemon postmaster postfix sendmail qmail exim"
+VACATION_TOKENS="on vacation,autoreply,auto-reply,auto reply,out of office,automated response,away from my mail,away from my email"
+
+# ----------------------------------------------------------------------------
+# MANDATORY.  The location of the special lists file tree
+# ----------------------------------------------------------------------------
+SPECIAL_LISTS="{prefix}/special_lists"
+
+# ----------------------------------------------------------------------------
+# The list authorization file directory  Set if you want to set and use
+# AUTH_REQUIRED for any of your lists
+# ----------------------------------------------------------------------------
+AUTH_DIR="${SPECIAL_LISTS}/auth_files"
+
+# ----------------------------------------------------------------------------
+# MANDATORY.  The list file directory
+# ----------------------------------------------------------------------------
+LIST_DIR="${SPECIAL_LISTS}/list_files"
+
+# ----------------------------------------------------------------------------
+# MANDATORY.  The list logs directory
+# ----------------------------------------------------------------------------
+LOGS_DIR="${SPECIAL_LISTS}/logs"
+
+# ----------------------------------------------------------------------------
+# MANDATORY.  The special lists error log
+# ----------------------------------------------------------------------------
+LIST_ERROR_LOG="${LOGS_DIR}/list_error.log"
+
+# ----------------------------------------------------------------------------
+# MANDATORY.  The special lists transaction log
+# ----------------------------------------------------------------------------
+LIST_TRANS_LOG="${LOGS_DIR}/transaction.log"

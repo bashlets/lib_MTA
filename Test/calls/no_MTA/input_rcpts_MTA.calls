@@ -1,0 +1,4 @@
+# 1
+echo '<foo@bar.com>' | test_func_wi_return_MTA input_rcpts_MTA dummy_arg '<foo@bar.com>'
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

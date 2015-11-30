@@ -1,0 +1,43 @@
+# email-gmail                                                                #
+# Compose an email message and relay it through smtp.gmail.com on port 465   #
+# An example bash script distributed with the lib_MTA.sh library             #
+##############################################################################
+# Source the lib_MTA library first!
+if [[ ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        echo "Can't find the lib_MTA library!" >&2
+        exit 1
+    fi
+fi
+
+source ${LIB_MTA}
+##############################################################################
+# Set/unset global variables (Unset is VARIABLE= )
+TIME_OUT=20                      # 20 seconds per wait, adjust as needed
+SECRETS=                         # Not recommended on multi-user hosts
+VERBOSE=true                     # If you want to see what's going on
+TTY=$(tty)                       # This should always be set
+LOG_ERRORS=/tmp/.MTA_errors.$$   # Usually a good thing
+FOOTER="\n\n-----------------------\nSent by email-gmail, a lib_MTA bash \
+library application\n"
+##############################################################################
+client="localhost"        # localhost if dhcp, fully qual. name for static IP
+MTA="smtp.gmail.com"
+##############################################################################
+input_msg_help_MTA
+sender=$(input_sender_MTA)       # Your email address when prompted
+rcpts=$(input_rcpts_MTA)         # Valid rcpt email address(es) when prompted
+subject=$(input_subject_MTA)     
+msg_body=$(input_msg_MTA)
+[[ ${?} -eq 123 ]] && { # Return 123 means user indicated there are attachments
+    TIME_OUT=300        # Large attachments take a long time
+    input_attachments_MTA
+}
+msg_body="${msg_body}${FOOTER}"
+email=$(format_msg_MTA "${sender}" "${rcpts}" "${subject}" "${msg_body}")
+relay_465_MTA "${client}" "${MTA}" "${sender}" "${rcpts}" "${email}"
+exit 0

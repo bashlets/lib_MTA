@@ -1,0 +1,31 @@
+                   **Lib_MTA Library Function Guidelines**
+         (Rules the author tried to adhere to in writing the library.)
+
+1) The purpose of a function is to provide convenience, coding excellence,
+and simplicity to programming by preventing needless code repetition and
+encapsulating programming tasks.  The purpose of a function library is to
+prevent perpetual re-writing of code blocks to perform similar or identical
+tasks.
+
+2) Library functions should be named according to some convention, suitable
+for indentifying the library and the function task.
+
+3) ALL library functions should have ONE specific task.
+
+5) Argument checking should be performed by ALL library functions, including
+functions which take no arguments or optional arguments.
+
+6) ALL library functions should return some value which reflects successful
+or unsuccessful execution of the function task.
+
+7) Library function variables should be local wherever possible.
+
+8) Library functions which contain global variables should take optional
+arguments to supplant global values.  This allows for greater utility to
+function use.
+
+9) Library functions should minimize reliance on other functions and on
+external programs.
+
+10) Calls within library functions should be limited to 3 levels.  This
+applies to calls to externals, other library functions and recursion.

@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA relay_err_MTA "Test error message." none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

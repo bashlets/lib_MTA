@@ -1,0 +1,23 @@
+# 2
+exec 3> ./foo1
+exec 4> ./foo4
+exec 6> ./foo6
+exec 8> ./foo8
+test_func_wi_return_MTA get_open_fd_MTA dummy_arg none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+echo "Found file descriptor ${OPEN_FD} open."
+echo
+exec 7> ./foo7
+exec 9> ./foo9
+test_func_wi_return_MTA get_open_fd_MTA dummy_arg none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+echo "Could not get an open file descriptor."
+echo
+rm -f foo[0-9]
+exec 3>&-
+exec 4>&-
+exec 6>&-
+exec 7>&-
+exec 8>&-
+exec 9>&-
+exit $PASSED

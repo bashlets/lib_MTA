@@ -1,0 +1,6 @@
+# 2
+test_func_wi_return_MTA kill_attachments_MTA "./email_msg" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA kill_attachments_MTA "./email_msg_wi_attach" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

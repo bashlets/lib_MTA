@@ -1,0 +1,14 @@
+# 3
+open_fd_MTA /dev/tcp/${1}/25
+test_func_wi_return_MTA read_MTA "220 ${FD}" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+close_fd_MTA ${FD}
+open_fd_MTA /dev/tcp/${1}/25
+test_func_wi_return_MTA read_MTA "250 ${FD}" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+close_fd_MTA ${FD}
+open_fd_MTA /dev/tcp/${1}/25
+test_func_wi_return_MTA read_MTA "220 ${FD} 30" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+close_fd_MTA ${FD}
+exit $PASSED

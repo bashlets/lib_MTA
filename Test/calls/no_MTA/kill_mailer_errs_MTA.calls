@@ -1,0 +1,7 @@
+# 2
+MAILER_ERR_TOKENS="root daemon postmaster postfix sendmail qmail exim"
+test_func_wi_return_MTA kill_mailer_errs_MTA "./email_msg $MAILER_ERR_TOKENS" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA kill_mailer_errs_MTA "./email_msg foobar" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

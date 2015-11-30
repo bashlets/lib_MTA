@@ -1,0 +1,10 @@
+# 3
+test_func_wi_return_MTA create_tmp_MTA /tmp/.tmp.1 /tmp/.tmp.1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA create_tmp_MTA /tmp/.tmp.2 /tmp/.tmp.2
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA create_tmp_MTA /tmp/.tmp.3 none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+ls -la /tmp/.tmp*
+rm -rf /tmp/.tmp*
+exit $PASSED

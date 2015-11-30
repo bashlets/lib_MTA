@@ -1,0 +1,12 @@
+# 5
+test_func_wi_return_MTA get_tmp_service_MTA "STARTTLS ./ehlo_out 10" '250-STARTTLS'
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA get_tmp_service_MTA "PIPELINING ./ehlo_out" '250 PIPELINING'
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA get_tmp_service_MTA "SIZE ./ehlo_out 5" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA get_tmp_service_MTA "8BITMIME ./ehlo_out" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA get_tmp_service_MTA "FOOBAR ./ehlo_out" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

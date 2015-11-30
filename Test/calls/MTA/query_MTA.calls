@@ -1,0 +1,22 @@
+# 10
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 PIPELINING 15" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 PIPELINING" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 ENHANCEDSTATUSCODES 10" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 8BITMIME" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 SIZE 30" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 HELP" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 DELIVERBY" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 HELP" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 ETRN" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA query_MTA "localhost ${1} 25 DSN" true
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

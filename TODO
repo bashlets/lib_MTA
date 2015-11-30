@@ -1,0 +1,4 @@
+--Add certificate verification option to TLS relaying.
+--Implement filter function to check/reject based on size of message.
+--Add functions to interactively generate new mailing lists.
+--Begin port and testing with Bash 4.0

@@ -1,0 +1,128 @@
+function pipe_relay_MTA () {
+    # Args: [client_host MTA_server port sender recipients mail_msg] in order
+
+    # If LOG_ERRORS is set to a log file, redirect standard error
+    # to the log file via the log_relay_errs_MTA function.
+    [[ "${LOG_ERRORS}" ]] && log_relay_errs_MTA "${LOG_ERRORS}"
+
+    # Look at our port argument and set the options to ssl
+    # accordingly.  If we are going to use port 587, we also
+    # need to make sure STARTTLS is available.
+    case ${3} in
+        465) local ssl_opts="-ign_eof -connect ${2}:${3}"
+        ;;
+        587) local ssl_opts="-starttls smtp -bugs -ign_eof -connect ${2}:${3}"
+             local starttls=$(query_MTA ${1} ${2} 587 STARTTLS)
+             [[ ! "${starttls}" ]] && {
+                 relay_err_MTA "No secure relay support at ${2}."
+                 return 1
+             }
+        ;;
+          *) relay_err_MTA "Invalid port."; return 1
+        ;;
+    esac
+
+    # Strip the rcpts argument of extraneous junk, and format it
+    # properly for input to the MTA.
+    local rcpts=$(strip_rcpts_MTA "${5}") rcpt Plain Login Method
+
+    # Make sure we have openssl, otherwise the rest is pointless...
+    which openssl >/dev/null 2>&1 || {
+        relay_err_MTA "You need openssl to relay mail with TLS."; return 1
+    }
+
+    # If the SECRETS variable is set and we have secrets files,
+    # source them, otherwise prompt for username and password.
+    if [[ "${SECRETS}" && -s "${SECRETS}/secrets.${2}" ]]; then
+        source "${SECRETS}/secrets.${2}"
+    else
+        User=$(get_username_MTA ${2}); Pass=$(get_password_MTA ${2})
+        plain_auth=$(set_plain_auth_64_MTA "${User}" "${Pass}")
+        login_user=$(set_login_user_64_MTA "${User}")
+        login_pass=$(set_login_pass_64_MTA "${Pass}")
+    fi
+
+    # Create a named pipe for input to the server via openssl
+    PIPE1=$(create_pipe_MTA "/tmp/.pipe1.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    # Open a file descriptor to the named pipe and
+    # assign the file descriptor to variable P1.
+    open_fd_MTA "${PIPE1}" || {
+        remove_file_MTA ${PIPE1}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P1=${FD}
+    # Create a second named pipe for output from the server
+    # via openssl.
+    PIPE2=$(create_pipe_MTA "/tmp/.pipe2.$$") || {
+        relay_err_MTA "Pipe creation failed."; return 1
+    }
+    # Open a file descriptor to the second named pipe and
+    # assign the file descriptor to variable P2.
+    open_fd_MTA "${PIPE2}" || {
+        close_fd_MTA ${P1};
+        remove_file_MTA ${PIPE1} ${PIPE2}
+        relay_err_MTA "File descriptor open failed."; return 1
+    }
+    P2=${FD}
+
+   # Invoke openssl with s_client to do our TLS negotiation.
+    # Background it so our named pipes won't block and stop
+    # execution of the script.  Feed the MTA input via openssl
+    # using named pipe file descriptor P1 and read output from
+    # the MTA via openssl using named pipe file descriptor P2.
+    # If "${LOG_ERRORS}" is set, any output from openssl on
+    # standard error (file descriptor 2) will be logged to the
+    # file location assigned to LOG_ERRORS.
+    openssl s_client ${ssl_opts} <&${P1} >&${P2} &
+    ssl_pid=${!}      # Get the openssl pid for use with 'kill'
+
+    # It might seem crazy, but we can actually remove the pipes
+    # once they are connected and the file descriptors will
+    # continue to work until they are closed.  Saves remembering
+    # to remove them later...
+    remove_file_MTA ${PIPE1} ${PIPE2}
+
+    # The rest is the actual ESMTP conversation with the MTA.
+
+    dump_MTA ${P2}; send_MTA "ehlo ${1}" ${P1} # Dump TLS handshake / send ehlo
+    Auth=$(get_service_MTA AUTH ${P2})         # Get the available auth choices
+    if [[ $Auth =~ ^.*AUTH[\ ](.*)$ ]]; then
+        for Method in ${BASH_REMATCH[1]}; do
+            [[ $Method =~ PLAIN ]] && Plain=true
+            [[ $Method =~ LOGIN ]] && Login=true
+        done
+    else # AUTH is not available, so bail...
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        relay_err_MTA "No supported authentication methods."
+        return 1
+    fi
+
+    if [[ ${Plain} = 'true' ]]; then # If available, make 'PLAIN' first choice.
+        send_MTA "auth plain ${plain_auth}" ${P1}
+    elif [[ ${Login} = 'true' ]]; then # Otherwise, use 'LOGIN'
+        send_MTA "auth login"    ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_user}" ${P1} && read_MTA 334 ${P2}
+        send_MTA "${login_pass}" ${P1}
+    else # Neither 'PLAIN' or 'LOGIN' is available, so bail...
+        send_MTA "quit" ${P1}; close_fd_MTA ${P1}; close_fd_MTA ${P2}
+        kill -9 ${ssl_pid} > /dev/null 2>&1
+        relay_err_MTA "No supported authentication methods."
+        return 1
+    fi
+    read_MTA 235 ${P2}
+    send_MTA "mail from: ${4}" ${P1} && read_MTA 250 ${P2} # Send the sender
+    oIFS=${IFS}; IFS=','
+    for rcpt in ${rcpts}; do
+        send_MTA "rcpt to: ${rcpt}" ${P1} && read_MTA 250 ${P2} # Send rcpts
+    done
+    IFS=${oIFS}
+    send_MTA "data" ${P1} && read_MTA 354 ${P2} # Ready to send body of msg.
+    send_MTA "${6}" ${P1} && send_MTA "." ${P1} && read_MTA 250 ${P2} # Send msg
+    send_MTA "quit" ${P1} && read_MTA 221 ${P2} # Done, so quit
+    close_fd_MTA ${P1}; close_fd_MTA ${P2}      # Clean up
+    kill -9 ${ssl_pid} > /dev/null 2>&1         # Make sure open_ssl goes away
+    return 0
+}

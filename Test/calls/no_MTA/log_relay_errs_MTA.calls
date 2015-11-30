@@ -1,0 +1,6 @@
+# 1
+LOG_ERRORS="./ERROR.log"
+test_func_wi_return_MTA log_relay_errs_MTA "${LOG_ERRORS}" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+remove_file_MTA $LOG_ERRORS
+exit $PASSED

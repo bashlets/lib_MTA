@@ -1,0 +1,154 @@
+README-LISTS
+^^^^^^^^^^^^
+
+The list filtering capability of the lib_MTA library relies on outbound list
+emails being fed to a control script, or filter script, via stdin.  The email
+list message is then temporarily saved to a file where it can be examined and
+operated on, if necessary, by the filter script, before being fed back to the
+MTA for delivery.  Thus, there is a loop involved, as shown in the following
+diagram:
+
+
+            Outbound List Email ------> Filter Script ---> Discard wi Reason
+                    ^                         |            Back to Sender
+     List           |                         |
+     Msg From ---->MTA---> Out to list        |
+     Sender         ^                         |  
+                    |                         |
+            Inbound Filtered Email <---- Modification
+
+The loop requirement is not unique to the library filtering capability.
+Majordomo and Mailman both use a similar loop configuration to that shown.                                                                                  
+To set this up so that it works properly, a few simple steps need to be taken.
+I assume you are using the real sendmail in the following discussion.  If you
+are using another MTA, consult your MTA documentation for the equivilent steps.
+
+All list file locations given are relative to the lib_MTA-(version) directory,
+which is under /usr/local/share unless you modified the prefix with configure.
+
+Step 1
+------
+The first step in setting up a filtered list is to put in place the three
+required list files for the filter.  List file locations are relative to the
+special_lists directory, which is /usr/local/share/lib_MTA{vers}/special_lists
+These files are:
+
+list_files/[listname]
+cfg_files/[listname.cfg]
+auth_files/[listname.auth]
+
+There is an example file under each of these subdirectories for the example list
+'testlist', which can be used as a template in creating your version of the
+three required list files.  Descriptions of the three files are as follows:
+
+    1) The list address file
+
+     File Name:   [listname] (should be the same as the list)
+                  (i.e. listname=mangos, file=mangos)
+    
+     Location:    Lives under special_lists/list_files.
+
+     Consists of: The actual email addresses of the list members, one per
+                  line. (See example file special_lists/list_files/testlist
+                  for file format)
+
+    2) The list configuration file
+
+     File Name:   [listname.cfg]
+                  (i.e. listname=mangos, file=mangos.cfg)
+
+     Location:    Lives under special_lists/cfg_files
+
+     Consists of: The filtering options for the list. (See example file
+                  special_lists/cfg_files/testlist.cfg for file format)
+
+    3) The list sender authorization file
+
+     File Name:   [listname.auth]
+                  (i.e. listname=mangos, file=mangos.auth)
+
+     Location:    Lives under special_lists/auth_files
+
+     Consists of: The email addresses, one per line, of authorized senders to
+                  to the list.  The sender address in the authorization file
+                  must match the From: address of the list email message in
+                  order to pass the authorization check.  (See the example file
+                  special_lists/auth_files/testlist.auth for file format)
+
+Step 2
+------
+The second step is to examine the global configuration file, MASTER.cfg which
+comes with the library.  This file is located under special_lists/cfg_files,
+and sets the default local MTA for your list, as well as the location of key
+list file directories and the names and locations of the list log files.
+If you have done a default install of lib_MTA and are using the default
+special_filter.sh supplied with the library,  the only variable you should have
+to edit is local_MTA.  Set this to the fully qualified name of your local MTA,
+as in someMTA.localhost.localdomain or myMTA.some.domain.  It needs to match
+what your local MTA advertises itself as in the Received: headers.  If any of 
+the other path names supplied in the file are not accurate because you changed
+the default install location, change them so that they accurately reflect your
+installation.
+
+Step 3
+------
+There are two empty log files created by the installation which are located
+under special_lists/logs: transaction.log and list_error.log.  Unless your
+MTA runs as root, you will need to change the ownership of both the logs
+directory and the log files to whatever user your mta runs as.  Otherwise,
+the logging functionality of the filter will not work because the MTA will
+not be able to write to the log files.  The user for sendmail  is usually
+'mail' or 'sendmail'.
+
+Step 4
+------
+The fourth step is to create two aliases in the aliases file for your MTA
+(usually /etc/aliases for sendmail).  The first alias should be the list name,
+and point to the filter.  If the list name is 'mangos', the alias should look
+like this:
+
+mangos: "|/usr/local/special_lists/filters/special_filter.sh mangos"
+
+The pipe symbol | tells sendmail to execute the filter with the email message
+piped to standard in.  Note that the mangos argument to the filter is required.
+
+The second alias should point to the actual file of list addresses created
+under Step 1.  For the 'mangos' list, this second alias should look something
+ike this:
+
+mangos-fl4kjla: :include: /usr/local/special_lists/list_files/mangos
+
+The :include: directive in the alias tells sendmail that the file pointed to
+contains a list of addresses, one per line.  The alias name itself can be
+anything you like, but by convention, usually contains the name of the list
+as the prefix.
+
+After you create the aliases, the alias database needs to be updated.  If using
+sendmail, the command to update the database is 'newaliases'.
+
+Step 5
+------
+The fifth step is to set the 'FINAL' parameter in the list configuration file
+you created under Step 1.  The 'FINAL' parameter is the alias name of the
+second alias created under Step 4.  For the mangos list, the configuration
+file would be special_lists/cfg_files/mangos.cfg and the entry should look
+like this:
+
+FINAL='mangos-fl4kjla'
+
+Possibe Step 6 wi sendmail
+--------------------------
+When using sendmail, you wll also have to create a symbolic link to the filter
+within the /etc/smrsh directory, if you have sendmail configured to use smrsh.
+For a default install of the library, the link command would be something like:
+
+ln -s /usr/local/share/lib_MTA-{vers}/special_lists/filters/special_filter.sh \
+/etc/smrsh/special_filter.sh
+
+where {vers} is the version of lib_MTA you have installed.
+
+=================================================================================
+Test your list after completing the above steps by swapping in a list address
+file containing just your email address and emailing the list.  If everything
+works, authorized senders to the list can begin using the list with the real
+list address file.

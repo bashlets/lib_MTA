@@ -1,0 +1,20 @@
+# 9
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.pl"  "text/x-script.perl"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.pdf" "application/pdf"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.txt" "text/plain"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.doc" "application/msword"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.jpg" "image/jpeg"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.sh"  "text/x-script.sh"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.z"  "application/x-compress"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.tar"  "application/x-tar"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA "get_mime_type_MTA" "foo.tar.gz"  "application/x-gzip"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

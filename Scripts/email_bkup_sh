@@ -1,0 +1,81 @@
+# email_bkup.sh                                                              #
+# Email backup file archives as attachments                                  #
+# Designed to  be invoked via an entry in crontab                            #
+# This is for relatively small size backup files of ~20 MB or less           #
+# Don't try this with a 2.0 GB file!  You will choke the MTA, if the         #
+# size limit is not exceeded first.                                          #
+##############################################################################
+LIB_MTA=/usr/local/development/lib_MTA/Install/lib_MTA.sh
+# Source the lib_MTA library first!
+if [[ ! "${LIB_MTA}" ]]; then
+    if [[ -f /etc/profile.d/MTA.sh ]]; then
+        source /etc/profile.d/MTA.sh
+    elif [[ -f /usr/local/bin/MTA.sh ]]; then
+        source /usr/local/bin/MTA.sh
+    else
+        echo "Can't find the lib_MTA library!" >&2
+        exit 1
+    fi
+fi
+source "${LIB_MTA}"
+
+# Set relevant global variables
+# Since this is part of a backup sequence, log errors
+LOG_ERRORS=/tmp/email.log.txt
+# SECRETS is mandatory since this needs to run without
+# user intervention
+SECRETS=/usr/local/etc/mail/.secrets
+TTY=$(tty)
+VERBOSE=
+TIME_OUT=300 # Long time-out, attachments take extra time.
+
+########################################################
+# Mandatory info for composing and mailing the message #
+########################################################
+client_host="my_computer@local.domain"                 #
+mta="MTA@local.domain"                                 #
+sender="<foo@locahost>"                                #
+rcpt="<someone@some.other.address>"                    #
+subject="Nightly Backup"                               #
+########################################################
+
+msg=$(cat << MSG
+Dear ${rcpt},
+
+The nightly backup from ${client_host} is attached.
+
+Signed,
+
+${sender}
+MSG)
+
+########################################################
+# The backup files we want to email                    #
+########################################################
+bkup_attach1="/tmp/bkup1.tar.bz2"                      #
+bkup_attach2="/tmp/bkup2.tar.bz2"                      #
+########################################################
+
+########################################################
+# Set global attachment vars used in format_msg_MTA    #
+########################################################
+FILE[1]=${bkup_attach1}                                #
+FILE[2]=${bkup_attach2}                                #
+FILE_NAME[1]=$(basename ${bkup_attach1})               #
+FILE_NAME[2]=$(basename ${bkup_attach2})               #
+# Get the mime type by passing the file names to       #
+# get_mime_type_MTA, where the file extension, in      #
+# this case bz2, will be used to look up the mime      #
+# type.                                                #
+MIME_TYPE[1]=$(get_mime_type_MTA ${FILE_NAME[1]})      #
+MIME_TYPE[2]=$(get_mime_type_MTA ${FILE_NAME[2]})      #
+########################################################
+
+# Format the whole thing into a sendable email
+bkup_email=$(format_msg_MTA "${sender}" "${rcpt}" "${subject}" "${msg}")
+
+# Send the email using one of the stock lib_MTA relay functions,
+# which one we use depends on what is supported on the MTA.
+relay_465_MTA "${client_host}" "${mta}" "${sender}" "${rcpt}" "${bkup_email}"
+
+exit 0

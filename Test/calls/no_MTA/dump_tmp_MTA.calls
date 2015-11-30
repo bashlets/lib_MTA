@@ -1,0 +1,14 @@
+# 5
+test_func_wi_return_MTA dump_tmp_MTA "./tls_out 10 true" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA dump_tmp_MTA "./tls_out true 10" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA dump_tmp_MTA "./tls_out true" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA dump_tmp_MTA "./tls_out 10" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+export VERBOSE=true
+test_func_wi_return_MTA dump_tmp_MTA "./tls_out" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+unset VERBOSE
+exit $PASSED

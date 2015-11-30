@@ -1,0 +1,8 @@
+# 2
+printable_string='!@#$^&%*(){}<>_+~\|,./?;:=-'"'"'"`'
+base64_string=$(echo -n -e "${printable_string}\0${printable_string}\0${printable_string}" | base64)
+test_func_wi_return_MTA set_plain_auth_64_MTA "${printable_string} ${printable_string}"  "${base64_string}"
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA set_plain_auth_64_MTA  "${printable_string} ${printable_string}" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

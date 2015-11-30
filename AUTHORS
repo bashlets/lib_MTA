@@ -1,0 +1,16 @@
+The author of this package is Tom Andrews <tandrews@cse.unr.edu>
+
+The author is indebted to Marco Maggi, who pioneered the idea of BASH
+libraries, and provided the inspiration for this one. Marco's BASH
+function library (mbfl) can currently be downloaded from:
+<https://gna.org/projects/mbfl>
+
+Please send bug reports for the lib_MTA package to:
+
+<tandrews@cse.unr.edu>.
+
+Questions on use of the library should be sent to:
+
+libmta-support@lists.sourceforge.net
+
+All email will be responded to as promptly as possible.

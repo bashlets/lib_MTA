@@ -1,0 +1,10 @@
+# 4
+test_func_wi_return_MTA chk_auth_MTA "./email_msg ./auth_file" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_auth_MTA "./email_msg ./auth_file2" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_auth_MTA "./email_msg_wi_attach ./auth_file" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_auth_MTA "./email_msg_wi_attach ./auth_file2" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

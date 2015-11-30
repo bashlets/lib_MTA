@@ -1,0 +1,40 @@
+README
+^^^^^^
+
+This software is a library of BASH shell script functions related to
+electronic mail.  The distribution also includes ancillary scripts, example
+files and documentation.  The library functions are aimed at two purposes,
+relaying email and filtering outbound mailing list email.  After installation,
+the full documentation of the library can be accessed as an info file by typing:
+'info lib_MTA'.
+
+The relaying functions allow you to write BASH scripts to relay email through
+both local and remote Mail Transfer Agents, both with and without TLS and
+authentication, just as any modern email client program would.  An example script
+called 'email-gmail' is provided under the examples directory of the installation
+(/usr/local/share/lib_MTA-{vers}/examples) which illustrates how to use the library
+for this purpose using port 465.  The library provides three relay functions,
+relay_25_MTA, for standard port 25 relaying of email, relay _465_MTA for
+authenticated TLS encrypted relaying of email on port 465, and relay_587_MTA,
+for STARTTLS with authentication relaying of email on port 587.
+
+The list filtering functions are designed for use on large mailing lists,
+which many corporations, universities and other large organizations maintain
+to communicate with target groups of benefactors, employees, students,
+customers, etc.  The filter functions provide capability for the following:
+
+	Optional From: line rewrite (SPOOF)
+	Optional Reply-To: line rewrite (SPOOF_REPLY)
+	Optional sender authorization check (AUTH_REQUIRED)
+	Optional attachment reject (NO_ATTACHMENTS)
+	Optional vacation reply reject (NO_VACATION)
+	Optional non-local posting rejection (MUST_BE_LOCAL)
+	Optional footer (FOOTER)
+	Optional Mailer error posting prevention (NO_MAIL_ERR)
+	Optional Spam tag posting prevention (NO_SPAM)
+
+A standard filtering script, called special_filter.sh is provided with the
+library. You are free to use this script, as is, customize it for your needs,
+or write a new filtering script using the library functions.  See the
+README-LISTS file for instructions on how to set up lists with the standard
+filter.

@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA print_client_MTA ehlo none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

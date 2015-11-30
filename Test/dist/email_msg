@@ -1,0 +1,20 @@
+From root Tue May 12 22:21:02 2009
+Received: from aurora.localhost.localdomain (localhost [127.0.0.1])
+        by aurora.localhost.localdomain (8.14.3/8.14.3) with ESMTP id n4D5L2lG027249
+        (version=TLSv1/SSLv3 cipher=DHE-RSA-AES256-SHA bits=256 verify=NOT)
+        for <testlist@aurora.localhost.localdomain>; Tue, 12 May 2009 22:21:02 -0700
+Received: (from andrews@localhost)
+        by aurora.localhost.localdomain (8.14.3/8.14.3/Submit) id n4D5L2ff027247
+        for testlist; Tue, 12 May 2009 22:21:02 -0700
+From: Postmaster <root>
+Reply-To: testlist
+Message-Id: <200905130521.n4D5L2ff027247@aurora.localhost.localdomain>
+Date: Tue, 12 May 2009 22:21:02 -0700
+To: testlist
+Subject: Log write test
+User-Agent: Heirloom mailx 12.4 7/29/08
+MIME-Version: 1.0
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+log write test.

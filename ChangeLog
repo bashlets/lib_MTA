@@ -1,0 +1,59 @@
+Version	   Date              Comments
+
+1.0b1    05/07/09   First public release of lib_MTA. (beta)
+
+1.1b1    05/20/09   Second public release of lib_MTA (beta)
+
+		    Fixed parsing of recipients in relay functions to leave
+		    commas in as a delimiter.
+
+		    Fixed special filter script to exit 0 upon exit of the
+		    special filter functions to prevent unwanted response from
+		    the MTA.
+
+		    Added alternate address response to the special filter.
+
+		    Removed mandatory exit from the list_error_MTA function
+		    to provide more programming flexibility.
+
+		    Removed return_email_MTA from all the list filter functions
+		    to provide more programming flexibility.
+
+		    Added thorough parsing to the input_sender_MTA and
+		    input_rcpts_MTA functions including bracket additon and
+		    check for invalid email address(es).
+
+		    Updated documentation to reflect the changes made, and
+		    added cross-referencing of global variables to function
+		    descriptions.
+
+1.2    06/07/09     Major additions to the library, including the capability
+                    to send attachments, the ability to supply optional
+                    arguments to change global variable values on a per
+                    function basis, and an extensive testing suite.
+
+                    Error checking has been improved/extended.
+
+                    The need for the external program 'formail' has been
+                    removed in favor of an internal library function which
+                    provides the same functionality.
+
+                    Added the ability to supply the kill_vacation_MTA and
+                    kill_mailer_errs_MTA functions with optional, custom
+                    tokens.
+
+                    Added a function to check for available file descriptors.
+
+                    Added functions to use named pipe for openssl output.
+
+                    Modified the add_footer_MTA function to handle alternative
+                    html format as well as plain text.
+
+                    The number of calls to 'sed' and 'grep' has been reduced
+                    by approximately two-thirds by utilizing BASH regular
+                    expression built-ins functionality more extensively.
+
+                    There are now 58 functions in the library, as opposed to
+                    38 in the initial release.
+
+                    Updated documentation to reflect the changes made.

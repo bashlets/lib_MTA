@@ -1,0 +1,6 @@
+# 2
+test_func_wi_return_MTA get_From_MTA ./email_msg 'root'
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA get_From_MTA ./email_msg_wi_attach 'andrews@localhost.localdomain'
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

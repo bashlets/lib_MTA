@@ -1,0 +1,4 @@
+# 1
+test_func_wi_return_MTA ehlo_MTA "localhost ${1} 25" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

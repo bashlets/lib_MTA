@@ -1,0 +1,10 @@
+# 3
+test_func_wi_return_MTA create_pipe_MTA /tmp/.pipe.1 /tmp/.pipe.1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA create_pipe_MTA /tmp/.pipe.2 /tmp/.pipe.2
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA create_pipe_MTA /tmp/.pipe.3 none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+ls -la /tmp/.pipe*
+rm -rf /tmp/.pipe*
+exit $PASSED

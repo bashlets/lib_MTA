@@ -1,0 +1,8 @@
+#! /bin/bash
+
+mkdir functests
+cp -p dist/* functests
+cp -p calls/MTA/*.calls functests
+cd functests
+read -p "Enter the fully qualified name of your MTA: "
+./mk_func_tests ${REPLY}

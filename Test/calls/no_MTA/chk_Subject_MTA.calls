@@ -1,0 +1,10 @@
+# 4
+test_func_wi_return_MTA chk_Subject_MTA ./email_msg none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_Subject_MTA "./email_msg write" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_Subject_MTA "./email_msg Log write test" none 1
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+test_func_wi_return_MTA chk_Subject_MTA "./email_msg foobar" none 0
+[[ ${?} -eq 0 ]] && : $((PASSED=PASSED+1))
+exit $PASSED

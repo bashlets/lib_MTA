@@ -1,0 +1,496 @@
+# @configure_input@
+# @CURRENT_DATE@
+
+## --------------------------------------------------------------------
+## Package Variables.
+## --------------------------------------------------------------------
+
+PKG		= @PACKAGE_NAME@
+VERS		= @PACKAGE_VERSION@
+## Put version in files, installed library name and key directories?
+version         = yes
+
+## ---------------------------------------------------------------------
+## Package Directories.
+## ---------------------------------------------------------------------
+
+builddir	= @builddir@
+srcdir		= @srcdir@
+MACRO_DIR	= Macros
+TEST_DIR	= Test
+TMP_TEST_DIR	= $(TEST_DIR)/functests
+LIB_DIR		= Lib
+SCRIPT_DIR	= Scripts
+SPCLIST_DIR	= Special_lists
+DOC_DIR		= Docs
+INST_DIR	= Install
+
+SUBDIRS		= $(MACRO_DIR) $(TEST_DIR) $(MTALIB_DIR) \
+		$(SCRIPT_DIR) $(SPCLIST_DIR) $(DOC_DIR INST_DIR)
+
+## ---------------------------------------------------------------------
+## Package Files to use in rulesets
+## ---------------------------------------------------------------------
+DOC_lib_MTA_texi	= $(DOC_DIR)/lib_MTA.texinfo
+LIB_lib_MTA_sh		= $(LIB_DIR)/lib_MTA_sh
+SCR_email_gmail_sh	= $(SCRIPT_DIR)/email_gmail_sh
+SCR_email_bkup_sh	= $(SCRIPT_DIR)/email_bkup_sh
+SCR_relay_func_sh	= $(SCRIPT_DIR)/relay_func_sh
+SPC_spcl_fltr_sh	= $(SPCLIST_DIR)/special_filter_sh
+SPC_tst_lst		= $(SPCLIST_DIR)/test_list
+SPC_MTA_sh		= $(SPCLIST_DIR)/MTA_sh
+SPC_MSTR_cfg		= $(SPCLIST_DIR)/MASTER_cfg
+SPC_tstlst_cfg		= $(SPCLIST_DIR)/testlist_cfg
+SPC_tstlst_auth		= $(SPCLIST_DIR)/testlist_auth
+SPC_trnsctn_log		= $(SPCLIST_DIR)/transaction_log
+SPC_lst_err_log		= $(SPCLIST_DIR)/list_error_log
+SPC_list_files		= $(SPC_spcl_fltr_sh) $(SPC_tst_lst) \
+			$(SPC_MTA_sh) $(SPC_MSTR_cfg) $(SPC_tstlst_cfg) \
+			$(SPC_tstlst_auth) $(SPC_trnsctn_log) \
+			$(SPC_lst_err_log)
+ADDARGCHK		= $(INST_DIR)/preprocess/add_arg_check.sh
+SHRINK			= $(INST_DIR)/preprocess/shrink.sh
+GPL			= $(INST_DIR)/preprocess/gpl.sh
+REPLACE			= $(INST_DIR)/preprocess/replace.sh
+
+## ---------------------------------------------------------------------
+## Lib_MTA.sh Required Programs from Configure
+## ---------------------------------------------------------------------
+
+BASH		?= @BASH_SHELL@
+SENDMAIL	= @SENDMAIL@
+OPENSSL		= @OPENSSL@
+BASE64		= @BASE64@
+SYNC		= @SYNC@
+CAT		= @CAT@
+DATE		= @DATE@
+GREP		= @GREP@
+AWK		= @AWK@
+SED		= @SED@
+TR		= @TR@
+RM		= @RM@
+BASENAME	= @BASENAME@
+HEAD		= @HEAD@
+TAIL		= @TAIL@
+MKFIFO		= @MKFIFO@
+TTY		= @TTY@
+WHICH		= @WHICH@
+LSOF		= @LSOF@
+KILL		= @KILL@
+
+## ---------------------------------------------------------------------
+## Pre-process and Installation Programs from Configure
+## ---------------------------------------------------------------------
+
+RM_ALL          = @RM@ --force --recursive
+RM_FILE         = @RM@ --force
+SYMLINK         = @SYMLINK@ --symbolic
+TEXI2PDF        = @TEXI2PDF@
+TEXI2DVI        = @TEXI2DVI@
+MAKEINFO        = @MAKEINFO@
+INSTINFO        = @INSTALLINFO@
+INSTALL_INFO    = $(INSTINFO) --quiet
+UNINSTALL_INFO  = $(INSTALL_INFO) --remove
+MKINFO          = $(MAKEINFO) --no-warn --output=$@
+MKHTML          = $(MAKEINFO) --no-warn --html --output=$@
+MKPDF           = $(TEXI2PDF) --quiet --clean --output=$@
+MKDVI           = $(TEXI2DVI) --quiet --clean --output=$@
+INSTALL         = @INSTALL@
+ifeq ($(strip $(INSTALL)),)
+INSTALL		= @INSTALL_SH@
+endif
+DIR_MODE        ?= 0755
+BIN_MODE        ?= 0755
+DATA_MODE       ?= 0644
+LIB_MODE        ?= 0644
+INSTALL_DIR     = $(INSTALL) -m $(DIR_MODE) -d
+INSTALL_BIN     = $(INSTALL) -m $(BIN_MODE)
+INSTALL_LIB     = $(INSTALL) -m $(LIB_MODE)
+INSTALL_DATA    = $(INSTALL) -m $(DATA_MODE)
+
+## --------------------------------------------------------------------
+## Installation Variables.
+## --------------------------------------------------------------------
+
+bin_SCRIPTS	= email-gmail special_filter.sh
+data_SCRIPTS	= MTA.sh MASTER.cfg testlist.cfg testlist.auth \
+		testlist transaction.log list_error.log
+EXTRA_DIST	= $(ADDARGCHK) $(SHRINK) $(GPL) 
+
+prefix		= @prefix@
+INSTALL_BIN_DIR	= @prefix@/bin
+SHARE		= @prefix@/share
+INFO_HOME	= $(SHARE)/info
+ifeq ($(version),yes)
+lib_SCRIPT	= lib_MTA.$(VERS).sh
+LIB_MTA_HOME	= $(SHARE)/lib_MTA-$(VERS)
+INSTALL_LIB_DIR	= @prefix@/lib/lib_MTA-$(VERS)
+else
+lib_SCRIPT      = lib_MTA.sh
+LIB_MTA_HOME    = $(SHARE)/lib_MTA
+INSTALL_LIB_DIR = @prefix@/lib/lib_MTA
+endif
+
+SYSCFG_DIR	= @prefix@/etc
+PROFILE_D_DIR	:= $(shell test -d /etc/profile.d && echo /etc/profile.d)
+ifeq ($(strip $(PROFILE_D_DIR)),)
+PROFILE_D_DIR	= $(INSTALL_BIN_DIR)
+endif
+INFO_FILE	= $(INFO_HOME)/lib_MTA.info
+LIST_DIR	= $(LIB_MTA_HOME)/special_lists
+EXAMPLES_DIR    = $(LIB_MTA_HOME)/examples
+INSTALL_DOC_DIR	= $(LIB_MTA_HOME)/doc
+HTML_DIR	= $(INSTALL_DOC_DIR)/html
+
+LIST_DIR_LINK	= @prefix@/special_lists
+LIST_FILE_DIR	= $(LIST_DIR)/list_files
+LIST_AUTH_DIR	= $(LIST_DIR)/auth_files
+LIST_CFG_DIR	= $(LIST_DIR)/cfg_files
+LIST_FILTER_DIR	= $(LIST_DIR)/filters
+LIST_LOG_DIR	= $(LIST_DIR)/logs
+LIST_DIRS	= $(LIST_FILE_DIR) $(LIST_AUTH_DIR) $(LIST_CFG_DIR) \
+		$(LIST_FILTER_DIR) $(LIST_LOG_DIR)
+
+IN_lib_MTA_sh	= $(INST_DIR)/lib_MTA.sh 
+IN_email_gmail	= $(INST_DIR)/email-gmail.sh
+IN_email_bkup	= $(INST_DIR)/email-bkup.sh
+IN_relay_func	= $(INST_DIR)/relay-func.sh
+IN_spcl_fltr_sh	= $(INST_DIR)/special_filter.sh
+IN_tst_lst	= $(INST_DIR)/testlist
+IN_MTA_sh	= $(INST_DIR)/MTA.sh
+IN_MSTR_cfg	= $(INST_DIR)/MASTER.cfg
+IN_tstlst_cfg	= $(INST_DIR)/testlist.cfg
+IN_tstlst_auth	= $(INST_DIR)/testlist.auth
+IN_trnsctn_log	= $(INST_DIR)/transaction.log
+IN_lst_err_log	= $(INST_DIR)/list_error.log
+
+IN_list_files	= $(IN_spcl_fltr_sh) $(IN_tst_lst) $(IN_MTA_sh) \
+		$(IN_MSTR_cfg) $(IN_tstlst_cfg) $(IN_tstlst_auth) \
+		$(IN_trnsctn_log) $(IN_lst_err_log)
+
+DOC_vers_texi	= $(DOC_DIR)/ver_lib_MTA.texinfo
+
+ifneq ($(strip $(TEXI2DVI)),)
+IN_dvi_doc	= $(INST_DIR)/lib_MTA.dvi
+dvi_install	= install_dvi
+else
+IN_dvi_doc      =
+dvi_install	=
+$(info MISSING texi2dvi, cannot create/install dvi documentation!)
+endif
+ifneq ($(strip $(MAKEINFO)),)
+IN_info_doc	= $(INST_DIR)/lib_MTA.info
+info_install	= install_info
+info_uninstall	= uninstall_info
+IN_html_docs	= $(INST_DIR)/lib_MTA.html
+html_install	= install_html
+else
+IN_info_doc     =
+info_install	=
+info_uninstall	=
+IN_html_docs    =
+html_install	=
+$(info MISSING makeinfo, cannot create/install/uninstall info and html documentation!)
+endif
+ifneq ($(strip $(TEXI2PDF)),)
+IN_pdf_doc	= $(INST_DIR)/lib_MTA.pdf
+pdf_install	= install_pdf
+else
+IN_pdf_doc      =
+pdf_install	=
+$(info MISSING texi2pdf, cannot create/install pdf documentation!)
+endif
+
+IN_doc_files	= $(IN_dvi_doc)	$(IN_info_doc) $(IN_html_docs) $(IN_pdf_doc)    
+INSTALL_DOCS	= $(dvi_install) $(info_install) $(html_install) $(pdf_install)
+
+## --------------------------------------------------------------------
+## Build rules
+## --------------------------------------------------------------------
+
+all: lib example_scripts special docs
+
+.PHONY: all
+
+lib: $(IN_lib_MTA_sh)
+
+$(IN_lib_MTA_sh): $(LIB_lib_MTA_sh)
+	$(ECHO_PRE-PROCESS)
+	$(ADD_GPL) > $@
+	$(CAT) $< | $(ADDARGCHK) | $(SHRINK) >> $@
+
+example_scripts: $(IN_email_gmail) $(IN_email_bkup) $(IN_relay_func)
+
+$(IN_email_gmail): $(SCR_email_gmail_sh)
+	$(PRE-PROCESS_BASH_SCRIPT)
+
+$(IN_email_bkup): $(SCR_email_bkup_sh)
+	$(PRE-PROCESS_BASH_SCRIPT)
+
+$(IN_relay_func): $(SCR_relay_func_sh)
+	$(PRE-PROCESS_BASH_SCRIPT)
+
+special: $(IN_list_files)
+
+$(IN_spcl_fltr_sh): $(SPC_spcl_fltr_sh)
+	$(PRE-PROCESS_BASH_SCRIPT)
+
+$(IN_tst_lst): $(SPC_tst_lst)
+	$(PRE-PROCESS_DATA)
+
+$(IN_MTA_sh): $(SPC_MTA_sh)
+	$(PRE-PROCESS_DATA)
+
+$(IN_MSTR_cfg): $(SPC_MSTR_cfg)
+	$(PRE-PROCESS_DATA)
+
+$(IN_tstlst_cfg): $(SPC_tstlst_cfg)
+	$(PRE-PROCESS_DATA)
+
+$(IN_tstlst_auth): $(SPC_tstlst_auth)
+	$(PRE-PROCESS_DATA)
+
+$(IN_trnsctn_log): $(SPC_trnsctn_log)
+	$(PRE-PROCESS_DATA)
+
+$(IN_lst_err_log): $(SPC_lst_err_log)
+	$(PRE-PROCESS_DATA)
+
+docs: $(DOC_vers_texi) $(IN_doc_files)
+
+$(DOC_vers_texi): $(DOC_lib_MTA_texi)
+	$(VERS_TEXI)
+
+$(IN_dvi_doc): $(DOC_vers_texi)
+	$(ECHO_CREATE)
+	$(MKDVI) $<
+
+$(IN_pdf_doc): $(DOC_vers_texi)
+	$(ECHO_CREATE)
+	$(MKPDF) $<
+
+$(IN_info_doc): $(DOC_vers_texi)
+	$(ECHO_CREATE)
+	$(MKINFO) $<
+
+$(IN_html_docs): $(DOC_vers_texi)
+	$(ECHO_CREATE)
+	$(MKHTML) $<
+
+## --------------------------------------------------------------------
+## Clean rules
+## --------------------------------------------------------------------
+
+.PHONY: distclean
+
+distclean: clean clean_make
+
+.PHONY: clean
+
+clean:
+	$(RM_ALL) $(INST_DIR)/*.* $(INST_DIR)/testlist
+	$(RM_FILE) $(DOC_vers_texi)  
+
+clean_make:
+	$(RM_FILE) Makefile
+
+## --------------------------------------------------------------------
+## Install rules
+## --------------------------------------------------------------------
+
+.PHONY: install
+
+install: install_MTA_sh install_lib install_examples \
+	install_special install_docs
+
+install_MTA_sh: $(INST_DIR)/MTA.sh
+	$(ECHO_INSTALL)
+	$(INSTALL_DIR) $(PROFILE_D_DIR)
+	$(INSTALL_DATA) $< $(PROFILE_D_DIR)
+
+install_lib: $(INST_DIR)/lib_MTA.sh
+	$(ECHO_INSTALL)
+	$(INSTALL_DIR) $(INSTALL_LIB_DIR)
+	$(INSTALL_LIB) $< $(INSTALL_LIB_DIR)/$(lib_SCRIPT)
+
+install_examples: $(INST_DIR)/email-gmail.sh $(INST_DIR)/email-bkup.sh \
+	$(INST_DIR)/relay-func.sh
+	$(ECHO_INSTALL_ALL)
+	$(INSTALL_DIR) $(EXAMPLES_DIR)
+	$(INSTALL_BIN) $^ $(EXAMPLES_DIR)
+
+install_special: list_dirs list_filter list_logs testlist testlist_auth \
+	testlist_cfg
+
+list_dirs:
+	$(INSTALL_DIR) $(LIST_DIRS)
+	$(SYMLINK) $(LIST_DIR) $(LIST_DIR_LINK)
+
+list_filter: $(INST_DIR)/special_filter.sh
+	$(ECHO_INSTALL)
+	$(INSTALL_BIN) $< $(LIST_FILTER_DIR)
+
+list_logs: $(INST_DIR)/transaction.log $(INST_DIR)/list_error.log
+	$(ECHO_INSTALL_ALL)
+	$(INSTALL_DATA) $^ $(LIST_LOG_DIR)
+
+testlist: $(INST_DIR)/testlist
+	$(ECHO_INSTALL)
+	$(INSTALL_DATA) $< $(LIST_FILE_DIR)
+
+testlist_auth: $(INST_DIR)/testlist.auth
+	$(ECHO_INSTALL)
+	$(INSTALL_DATA) $< $(LIST_AUTH_DIR)
+
+testlist_cfg: $(INST_DIR)/MASTER.cfg $(INST_DIR)/testlist.cfg
+	$(ECHO_INSTALL_ALL)
+	$(INSTALL_DATA) $^ $(LIST_CFG_DIR)
+
+.PHONY: install_docs
+
+install_docs: $(INSTALL_DOCS)
+
+install_pdf:  $(INST_DIR)/lib_MTA.pdf
+	$(ECHO_INSTALL)
+	$(INSTALL_DIR) $(INSTALL_DOC_DIR)
+	$(INSTALL_DATA) $< $(INSTALL_DOC_DIR)
+
+install_info: $(INST_DIR)/lib_MTA.info
+	$(ECHO_INSTALL)
+	$(INSTALL_DIR) $(INFO_HOME)
+	$(INSTALL_DATA) $< $(INFO_FILE)
+	$(INSTALL_INFO) $(INFO_FILE)
+
+install_html: $(INST_DIR)/lib_MTA.html/*.html
+	$(ECHO_INSTALL_ALL)
+	$(INSTALL_DIR) $(HTML_DIR)
+	$(INSTALL_DATA) $^ $(HTML_DIR)
+
+install_dvi: $(INST_DIR)/lib_MTA.dvi
+	$(ECHO_INSTALL)
+	$(INSTALL_DIR) $(INSTALL_DOC_DIR)
+	$(INSTALL_DATA) $< $(INSTALL_DOC_DIR)
+
+## --------------------------------------------------------------------
+## Test rules
+## --------------------------------------------------------------------
+
+.PHONY: test
+
+test:
+	@echo
+	@echo "Testing functions in lib_MTA..."
+	cd $(TEST_DIR); ./create_tests
+	cd $(TMP_TEST_DIR); ./Test_lib_MTA.sh
+	$(RM_ALL) $(TMP_TEST_DIR)
+
+.PHONY: MTA_test
+
+MTA_test:
+	@echo
+	@echo "Testing MTA functions in lib_MTA..."
+	cd $(TEST_DIR); ./create_MTA_tests
+	cd $(TMP_TEST_DIR); ./Test_lib_MTA.sh
+	$(RM_ALL) $(TMP_TEST_DIR)
+
+## --------------------------------------------------------------------
+## Uninstall rules
+## --------------------------------------------------------------------
+
+.PHONY: uninstall
+
+uninstall: rm_all uninstall_mta_sh uninstall_lib uninstall_symlink \
+	uninstall_MTA_home $(info_uninstall)
+
+rm_all:
+	@echo
+	@echo "removing the complete lib_MTA installation..."
+
+uninstall_mta_sh:
+	@echo
+	@echo "removing $(PROFILE_D_DIR)/MTA.sh..."
+	$(RM_FILE) $(PROFILE_D_DIR)/MTA.sh
+
+uninstall_lib:
+	@echo
+	@echo "removing $(INSTALL_LIB_DIR)..."
+	$(RM_ALL) $(INSTALL_LIB_DIR)
+
+uninstall_symlink:
+	@echo
+	@echo "removing $(LIST_DIR_LINK)..."
+	$(RM_FILE) $(LIST_DIR_LINK)
+
+uninstall_info:
+	@echo
+	@echo "deleting info entries and removing $(INFO_FILE)..."
+	$(UNINSTALL_INFO) $(INFO_FILE)
+	$(RM_FILE) $(INFO_FILE)
+
+uninstall_MTA_home:
+	@echo
+	@echo "removing $(LIB_MTA_HOME)..."
+	$(RM_ALL) $(LIB_MTA_HOME)
+
+## --------------------------------------------------------------------
+## Defines
+## --------------------------------------------------------------------
+ifeq ($(version),yes)
+define VERS_TEXI
+	$(CAT) $< | $(REPLACE) '&VERS&' $(VERS) > $(DOC_vers_texi)
+endef
+define ADD_GPL
+	$(GPL) $(notdir $@) | $(REPLACE) {-VERS} -$(VERS)
+endef
+define ADD_DATA
+      	$(CAT) $< | $(REPLACE) {prefix} @prefix@ \
+      	| $(REPLACE) {-VERS} -$(VERS) \
+      	| $(REPLACE) {.VERS} .$(VERS)
+endef
+else
+define VERS_TEXI
+	$(CAT) $< | $(REPLACE) 'version &VERS& of ' > $(DOC_vers_texi)
+endef
+define ADD_GPL
+	$(GPL) $(notdir $@) | $(REPLACE) {-VERS}
+endef
+define ADD_DATA
+	$(CAT) $< | $(REPLACE) {prefix} @prefix@ \
+	| $(REPLACE) {-VERS} \
+	| $(REPLACE) {.VERS}
+endef
+endif
+
+define PRE-PROCESS_DATA
+        $(ECHO_PRE-PROCESS)
+        $(ADD_GPL) > $@
+	$(ADD_DATA) >> $@
+endef
+
+define PRE-PROCESS_BASH_SCRIPT
+	$(ECHO_PRE-PROCESS)
+	echo "#!" $(BASH) > $@
+        $(ADD_GPL) >> $@
+	$(ADD_DATA) >> $@
+endef
+
+define ECHO_CREATE
+	@echo
+	@echo "Creating $(notdir $@)..."
+endef
+
+define ECHO_INSTALL
+	@echo
+	@echo "installing $(notdir $<)..."
+endef
+
+define ECHO_INSTALL_ALL
+	@echo
+	@echo "installing $(notdir $^)..."
+endef
+
+define ECHO_PRE-PROCESS
+	@echo
+	@echo "Pre-processing $(notdir $@)..."
+	$(RM_FILE) $@
+endef
